@@ -1,11 +1,23 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
-// Load environment variables first
+// Load environment variables first (only needed for local development)
 dotenv.config();
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY!; // Use service key for backend
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+
+// Validate required environment variables
+if (!supabaseUrl) {
+  throw new Error('SUPABASE_URL environment variable is required');
+}
+if (!supabaseServiceKey) {
+  throw new Error('SUPABASE_SERVICE_KEY environment variable is required');
+}
+
+console.log('Initializing Supabase client...');
+console.log('SUPABASE_URL:', supabaseUrl.substring(0, 30) + '...');
+console.log('SUPABASE_SERVICE_KEY:', supabaseServiceKey.substring(0, 30) + '...');
 
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
