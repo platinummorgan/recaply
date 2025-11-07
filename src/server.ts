@@ -39,21 +39,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Debug endpoint to check environment variables (REMOVE IN PRODUCTION)
-app.get('/debug/env', (req, res) => {
-  res.json({
-    hasSupabaseUrl: !!process.env.SUPABASE_URL,
-    hasSupabaseServiceKey: !!process.env.SUPABASE_SERVICE_KEY,
-    hasOpenAI: !!process.env.OPENAI_API_KEY,
-    hasJWT: !!process.env.JWT_SECRET,
-    nodeEnv: process.env.NODE_ENV,
-    port: process.env.PORT,
-    // Show first 10 chars only for security
-    supabaseUrlPreview: process.env.SUPABASE_URL?.substring(0, 30) + '...',
-    serviceKeyPreview: process.env.SUPABASE_SERVICE_KEY?.substring(0, 30) + '...',
-  });
-});
-
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/audio', audioRoutes);
