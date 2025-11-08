@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Recaply",
+    "slug": "recaply",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.recaply.app",
+      "permissions": [
+        "RECORD_AUDIO",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9ca8f320-499c-4321-824a-8e915cea71c4"
+      }
+    },
+    "owner": "platinummorgan"
+  }
+}

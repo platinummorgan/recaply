@@ -1,0 +1,19 @@
+{
+  "name": "recaply-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "react-native start",
+    "android": "react-native run-android",
+    "backend": "cd backend && npm run dev",
+    "backend:build": "cd backend && npm run build",
+    "backend:start": "cd backend && npm start",
+    "setup": "npm install && cd backend && npm install && cd ..",
+    "dev": "concurrently \"npm run backend\" \"npm start\"",
+    "test": "jest",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
