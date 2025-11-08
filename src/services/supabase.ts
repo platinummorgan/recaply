@@ -317,7 +317,13 @@ export async function hasAvailableMinutes(
 
   if (user.subscription_tier === 'pro') return true; // Unlimited
 
-  return (user.minutes_used + minutesNeeded) <= user.minutes_limit;
+  // Allow using all available minutes (even if request is slightly over)
+  // This prevents edge cases where you have 1 minute left but recording is 1.05 minutes
+  const remainingMinutes = user.minutes_limit - user.minutes_used;
+  
+  // If they have any minutes remaining, allow the upload
+  // The deductMinutes function will cap it at the limit
+  return remainingMinutes > 0;
 }
 
 /**
@@ -334,7 +340,14 @@ export async function deductMinutes(
     throw new Error('User not found');
   }
 
-  const newMinutesUsed = (user.minutes_used || 0) + minutes;
+  // For non-pro users, cap at their limit (don't let them go over)
+  let minutesToDeduct = minutes;
+  if (user.subscription_tier !== 'pro') {
+    const remainingMinutes = user.minutes_limit - user.minutes_used;
+    minutesToDeduct = Math.min(minutes, remainingMinutes);
+  }
+
+  const newMinutesUsed = (user.minutes_used || 0) + minutesToDeduct;
 
   // Update user minutes
   const { error: updateError } = await supabase
@@ -346,12 +359,12 @@ export async function deductMinutes(
     console.error('Error updating minutes:', updateError);
   }
 
-  // Record usage
+  // Record usage (record the actual minutes, not capped)
   const { error: insertError } = await supabase
     .from('usage_records')
     .insert({
       user_id: userId,
-      minutes_used: minutes,
+      minutes_used: minutesToDeduct,
       action_type: actionType,
     });
 
