@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, ActionSheetIOS, Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { Paths, File, Directory } from 'expo-file-system';
 import { Audio } from 'expo-av';
+import Slider from '@react-native-community/slider';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = 'https://web-production-abd11.up.railway.app';
@@ -16,9 +17,12 @@ export default function TranscriptScreen({ route, navigation }: any) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioUrlFromDB, setAudioUrlFromDB] = useState<string | null>(audioUrl || null);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
 
   // Load existing summary if available
-  React.useEffect(() => {
+  useEffect(() => {
     if (recordingId) {
       loadRecording();
     }
@@ -72,11 +76,7 @@ export default function TranscriptScreen({ route, navigation }: any) {
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: audioUrlFromDB },
           { shouldPlay: true },
-          (status) => {
-            if (status.isLoaded && status.didJustFinish) {
-              setIsPlaying(false);
-            }
-          }
+          onPlaybackStatusUpdate
         );
         setSound(newSound);
         setIsPlaying(true);
@@ -86,6 +86,40 @@ export default function TranscriptScreen({ route, navigation }: any) {
       Alert.alert('Playback Error', error.message);
     }
   }
+
+  const onPlaybackStatusUpdate = (status: any) => {
+    if (status.isLoaded) {
+      setPosition(status.positionMillis);
+      setDuration(status.durationMillis || 0);
+      
+      if (status.didJustFinish && !status.isLooping) {
+        setIsPlaying(false);
+        setPosition(0);
+      }
+    }
+  };
+
+  const onSeek = async (value: number) => {
+    if (sound) {
+      await sound.setPositionAsync(value);
+    }
+  };
+
+  const formatTime = (millis: number) => {
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Cleanup sound on unmount
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [sound]);
 
   async function generateSummary() {
     try {
@@ -132,12 +166,17 @@ export default function TranscriptScreen({ route, navigation }: any) {
             try {
               const response = await fetch(`${API_URL}/api/audio/recordings/${recordingId}`, {
                 method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
               });
 
               if (response.ok) {
                 Alert.alert('Deleted', 'Recording deleted successfully');
                 navigation.navigate('Home');
               } else {
+                const error = await response.text();
+                console.error('Delete failed:', error);
                 Alert.alert('Error', 'Could not delete recording');
               }
             } catch (error) {
@@ -342,14 +381,35 @@ export default function TranscriptScreen({ route, navigation }: any) {
       </View>
 
       {audioUrlFromDB && (
-        <TouchableOpacity 
-          style={styles.playButton}
-          onPress={playAudio}
-        >
-          <Text style={styles.playButtonText}>
-            {isPlaying ? '⏸️ Pause' : '▶️ Play Recording'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.audioPlayerContainer}>
+          <TouchableOpacity 
+            style={styles.playButton}
+            onPress={playAudio}
+          >
+            <Text style={styles.playButtonText}>
+              {isPlaying ? '⏸️ Pause' : '▶️ Play'}
+            </Text>
+          </TouchableOpacity>
+          
+          {duration > 0 && (
+            <View style={styles.seekBarContainer}>
+              <Text style={styles.timeText}>{formatTime(position)}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={duration}
+                value={position}
+                onValueChange={onSeek}
+                onSlidingStart={() => setIsSeeking(true)}
+                onSlidingComplete={() => setIsSeeking(false)}
+                minimumTrackTintColor="#10b981"
+                maximumTrackTintColor="#d1d5db"
+                thumbTintColor="#10b981"
+              />
+              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+            </View>
+          )}
+        </View>
       )}
 
       <View style={styles.section}>
@@ -517,18 +577,44 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   playButton: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 10,
     backgroundColor: '#10b981',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    marginBottom: 10,
   },
   playButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  audioPlayerContainer: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 10,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  seekBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  slider: {
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#666',
+    width: 40,
+    textAlign: 'center',
   },
   actionItem: {
     flexDirection: 'row',
