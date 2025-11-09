@@ -1,7 +1,7 @@
 import express, { Router, Response } from 'express';
 import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { transcribeAudio, estimateAudioMinutes } from '../services/transcription';
+import { transcribeAudio } from '../services/transcription';
 import { generateSummary } from '../services/llm';
 import { hasAvailableMinutes, deductMinutes, saveRecording, updateRecordingSummary, getRecordings, getUserRecordings, getRecording, deleteRecording, uploadAudioFile } from '../services/supabase';
 import { combineAudioSegments } from '../services/audioProcessor';
@@ -28,11 +28,8 @@ router.post('/upload', authenticate, upload.single('audio'), async (req: AuthReq
 
     console.log(`Transcribing audio for user ${userId}: ${filename}, size: ${audioBuffer.length} bytes`);
     
-    // Estimate duration and check if user has available minutes
-    const estimatedMinutes = estimateAudioMinutes(audioBuffer.length);
-    console.log(`Estimated duration: ${estimatedMinutes} minutes`);
-    
-    const hasMinutes = await hasAvailableMinutes(userId, estimatedMinutes);
+    // Check if user has ANY available minutes
+    const hasMinutes = await hasAvailableMinutes(userId, 1);
     if (!hasMinutes) {
       return res.status(403).json({ 
         error: 'Insufficient minutes',
@@ -40,8 +37,10 @@ router.post('/upload', authenticate, upload.single('audio'), async (req: AuthReq
       });
     }
     
-    // Transcribe
-    const transcription = await transcribeAudio(audioBuffer, filename);
+    // Transcribe and get actual duration
+    const { text: transcription, durationSeconds } = await transcribeAudio(audioBuffer, filename);
+    const actualMinutes = Math.ceil(durationSeconds / 60);
+    console.log(`Actual duration: ${actualMinutes} minutes (${durationSeconds} seconds)`);
 
     // Upload audio file to Supabase Storage
     const audioUrl = await uploadAudioFile(audioBuffer, filename, userId);
@@ -50,9 +49,9 @@ router.post('/upload', authenticate, upload.single('audio'), async (req: AuthReq
     // Save to database with user_id and audio URL
     const recording = await saveRecording(filename, transcription, audioBuffer.length, userId, audioUrl);
 
-    // Deduct minutes from user's account
-    await deductMinutes(userId, estimatedMinutes, 'transcription');
-    console.log(`Deducted ${estimatedMinutes} minutes from user ${userId}`);
+    // Deduct actual minutes from user's account
+    await deductMinutes(userId, actualMinutes, 'transcription');
+    console.log(`Deducted ${actualMinutes} minutes from user ${userId}`);
 
     res.json({
       transcription,
@@ -60,7 +59,7 @@ router.post('/upload', authenticate, upload.single('audio'), async (req: AuthReq
       size: audioBuffer.length,
       recordingId: recording.id,
       audioUrl: audioUrl,
-      minutesUsed: estimatedMinutes,
+      minutesUsed: actualMinutes,
     });
   } catch (error: any) {
     console.error('Upload/transcription error:', error);
@@ -88,11 +87,8 @@ router.post('/upload-segments', authenticate, upload.array('segments', 50), asyn
     const combinedAudioBuffer = await combineAudioSegments(segments);
     console.log(`Combined audio size: ${combinedAudioBuffer.length} bytes`);
 
-    // Estimate duration and check if user has available minutes
-    const estimatedMinutes = estimateAudioMinutes(combinedAudioBuffer.length);
-    console.log(`Estimated duration: ${estimatedMinutes} minutes`);
-    
-    const hasMinutes = await hasAvailableMinutes(userId, estimatedMinutes);
+    // Check if user has ANY available minutes
+    const hasMinutes = await hasAvailableMinutes(userId, 1);
     if (!hasMinutes) {
       return res.status(403).json({ 
         error: 'Insufficient minutes',
@@ -100,8 +96,10 @@ router.post('/upload-segments', authenticate, upload.array('segments', 50), asyn
       });
     }
     
-    // Transcribe the combined audio
-    const transcription = await transcribeAudio(combinedAudioBuffer, filename);
+    // Transcribe the combined audio and get actual duration
+    const { text: transcription, durationSeconds } = await transcribeAudio(combinedAudioBuffer, filename);
+    const actualMinutes = Math.ceil(durationSeconds / 60);
+    console.log(`Actual duration: ${actualMinutes} minutes (${durationSeconds} seconds)`);
 
     // Upload combined audio file to Supabase Storage
     const audioUrl = await uploadAudioFile(combinedAudioBuffer, filename, userId);
@@ -110,9 +108,9 @@ router.post('/upload-segments', authenticate, upload.array('segments', 50), asyn
     // Save to database with user_id and audio URL
     const recording = await saveRecording(filename, transcription, combinedAudioBuffer.length, userId, audioUrl);
 
-    // Deduct minutes from user's account
-    await deductMinutes(userId, estimatedMinutes, 'transcription');
-    console.log(`Deducted ${estimatedMinutes} minutes from user ${userId}`);
+    // Deduct actual minutes from user's account
+    await deductMinutes(userId, actualMinutes, 'transcription');
+    console.log(`Deducted ${actualMinutes} minutes from user ${userId}`);
 
     res.json({
       transcription,
@@ -120,7 +118,7 @@ router.post('/upload-segments', authenticate, upload.array('segments', 50), asyn
       size: combinedAudioBuffer.length,
       recordingId: recording.id,
       audioUrl: audioUrl,
-      minutesUsed: estimatedMinutes,
+      minutesUsed: actualMinutes,
       segmentCount: segments.length,
     });
   } catch (error: any) {
@@ -247,11 +245,8 @@ router.post('/transcribe', authenticate, upload.single('audio'), async (req: Aut
     const audioBuffer = req.file.buffer;
     const filename = req.file.originalname;
 
-    // Estimate minutes
-    const estimatedMinutes = estimateAudioMinutes(audioBuffer.length);
-
-    // Check if user has enough minutes
-    const hasMinutes = await hasAvailableMinutes(userId, estimatedMinutes);
+    // Check if user has ANY minutes available
+    const hasMinutes = await hasAvailableMinutes(userId, 1);
     if (!hasMinutes) {
       return res.status(403).json({ 
         error: 'Insufficient minutes',
@@ -259,16 +254,17 @@ router.post('/transcribe', authenticate, upload.single('audio'), async (req: Aut
       });
     }
 
-    // Transcribe
+    // Transcribe and get actual duration
     console.log(`Transcribing audio for user ${userId}: ${filename}`);
-    const transcript = await transcribeAudio(audioBuffer, filename);
+    const { text: transcript, durationSeconds } = await transcribeAudio(audioBuffer, filename);
+    const actualMinutes = Math.ceil(durationSeconds / 60);
 
-    // Deduct minutes
-    await deductMinutes(userId, estimatedMinutes, 'transcription');
+    // Deduct actual minutes
+    await deductMinutes(userId, actualMinutes, 'transcription');
 
     res.json({
       transcript,
-      minutesUsed: estimatedMinutes,
+      minutesUsed: actualMinutes,
     });
   } catch (error: any) {
     console.error('Transcription error:', error);
@@ -333,11 +329,8 @@ router.post('/process', authenticate, upload.single('audio'), async (req: AuthRe
     const audioBuffer = req.file.buffer;
     const filename = req.file.originalname;
 
-    // Estimate minutes (transcription + summary)
-    const estimatedMinutes = estimateAudioMinutes(audioBuffer.length) + 1;
-
-    // Check if user has enough minutes
-    const hasMinutes = await hasAvailableMinutes(userId, estimatedMinutes);
+    // Check if user has ANY minutes available (will add 1 for summary)
+    const hasMinutes = await hasAvailableMinutes(userId, 1);
     if (!hasMinutes) {
       return res.status(403).json({ 
         error: 'Insufficient minutes',
@@ -345,20 +338,21 @@ router.post('/process', authenticate, upload.single('audio'), async (req: AuthRe
       });
     }
 
-    // Transcribe
+    // Transcribe and get actual duration
     console.log(`Processing audio for user ${userId}: ${filename}`);
-    const transcript = await transcribeAudio(audioBuffer, filename);
+    const { text: transcript, durationSeconds } = await transcribeAudio(audioBuffer, filename);
+    const actualMinutes = Math.ceil(durationSeconds / 60) + 1; // +1 for summary
 
     // Summarize
     const summary = await generateSummary(transcript);
 
-    // Deduct minutes
-    await deductMinutes(userId, estimatedMinutes, 'transcription');
+    // Deduct actual minutes
+    await deductMinutes(userId, actualMinutes, 'transcription');
 
     res.json({
       transcript,
       summary,
-      minutesUsed: estimatedMinutes,
+      minutesUsed: actualMinutes,
     });
   } catch (error: any) {
     console.error('Processing error:', error);

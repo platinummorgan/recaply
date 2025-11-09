@@ -6,11 +6,12 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
 
 /**
  * Transcribe audio using OpenAI Whisper API
+ * Returns both text and actual duration in seconds
  */
 export async function transcribeAudio(
   audioBuffer: Buffer,
   filename: string
-): Promise<string> {
+): Promise<{ text: string; durationSeconds: number }> {
   try {
     const formData = new FormData();
     const audioStream = Readable.from(audioBuffer);
@@ -21,6 +22,7 @@ export async function transcribeAudio(
     });
     formData.append('model', 'whisper-1');
     formData.append('language', 'en');
+    formData.append('response_format', 'verbose_json'); // Get duration info
 
     const response = await axios.post(
       'https://api.openai.com/v1/audio/transcriptions',
@@ -36,18 +38,13 @@ export async function transcribeAudio(
       }
     );
 
-    return response.data.text;
+    return {
+      text: response.data.text,
+      durationSeconds: response.data.duration || 0
+    };
   } catch (error: any) {
     console.error('Transcription error:', error.response?.data || error.message);
     throw new Error('Failed to transcribe audio');
   }
 }
 
-/**
- * Estimate audio duration in minutes from file size
- * Rough estimate: 1MB ≈ 8 minutes for compressed audio
- */
-export function estimateAudioMinutes(fileSizeBytes: number): number {
-  const fileSizeMB = fileSizeBytes / (1024 * 1024);
-  return Math.ceil(fileSizeMB * 8);
-}
