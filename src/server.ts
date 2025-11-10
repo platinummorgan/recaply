@@ -10,6 +10,7 @@ import authRoutes from './routes/auth';
 import audioRoutes from './routes/audio';
 import subscriptionRoutes from './routes/subscription';
 import userRoutes from './routes/user';
+import purchasesRoutes from './routes/purchases';
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/audio', audioRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/purchases', purchasesRoutes);
 
 // 404 handler
 app.use((req, res) => {
