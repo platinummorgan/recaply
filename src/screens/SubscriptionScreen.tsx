@@ -9,23 +9,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-
-// IAP will only work in standalone builds, not Expo Go
-let IAP: any = null;
-try {
-  IAP = require('react-native-iap');
-} catch (e) {
-  console.log('IAP not available in Expo Go - purchase functionality disabled');
-}
+import { usePurchases } from '../hooks/usePurchases';
 
 interface SubscriptionScreenProps {
   navigation: any;
 }
-
-const SUBSCRIPTION_SKUS = {
-  lite: 'recaply_lite_monthly',
-  pro: 'recaply_pro_monthly',
-};
 
 interface PlanFeature {
   name: string;
@@ -35,7 +23,7 @@ interface PlanFeature {
 }
 
 const FEATURES: PlanFeature[] = [
-  { name: 'Minutes per month', free: '30', lite: '300', pro: 'Unlimited' },
+  { name: 'Minutes per month', free: '30', lite: '120', pro: 'Unlimited' },
   { name: 'AI Transcription', free: true, lite: true, pro: true },
   { name: 'AI Summaries', free: true, lite: true, pro: true },
   { name: 'Offline Recording', free: true, lite: true, pro: true },
@@ -44,118 +32,25 @@ const FEATURES: PlanFeature[] = [
 ];
 
 const SubscriptionScreen = ({ navigation }: SubscriptionScreenProps) => {
-  const { user, token, refreshUser } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [products, setProducts] = useState<any[]>([]);
+  const { user, refreshUser } = useAuth();
+  const { products, loading, purchasing, subscribe, getProduct, PRODUCT_IDS } = usePurchases();
 
-  useEffect(() => {
-    if (IAP) {
-      initIAP();
-      return () => {
-        IAP.endConnection();
-      };
-    }
-  }, []);
+  const currentTier = user?.subscriptionTier || 'free';
 
-  const initIAP = async () => {
-    if (!IAP) return;
-    try {
-      await IAP.initConnection();
-      const availableProducts = await IAP.getSubscriptions(
-        Object.values(SUBSCRIPTION_SKUS)
-      );
-      setProducts(availableProducts);
-    } catch (error) {
-      console.error('IAP init error:', error);
-    }
-  };
+  // Get product pricing
+  const liteProduct = getProduct(PRODUCT_IDS.LITE);
+  const proProduct = getProduct(PRODUCT_IDS.PRO);
 
-  const handlePurchase = async (sku: string, planName: string) => {
-    if (!IAP) {
-      Alert.alert(
-        'Not Available in Expo Go',
-        'In-app purchases only work in standalone builds. For testing, you can manually upgrade accounts via the backend API.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    if (!user || !token) {
+  const handlePurchase = async (productId: string, planName: string) => {
+    if (!user) {
       Alert.alert('Error', 'Please log in to purchase');
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // Request purchase
-      await IAP.requestSubscription({ sku, andDangerouslyFinishTransactionAutomaticallyIOS: false });
-
-      // Listen for purchase update
-      const purchaseUpdateSubscription = IAP.purchaseUpdatedListener(
-        async (purchase: any) => {
-          const { purchaseToken, productId, transactionReceipt } = purchase;
-
-          if (purchaseToken) {
-            // Verify purchase with backend
-            const response = await fetch('https://web-production-abd11.up.railway.app/api/subscription/verify', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                purchaseToken,
-                productId,
-              }),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              Alert.alert(
-                'Success!',
-                `Welcome to Recaply ${planName}! You now have ${data.minutes === 999999 ? 'unlimited' : data.minutes} minutes.`,
-                [
-                  {
-                    text: 'OK',
-                    onPress: async () => {
-                      await refreshUser();
-                      navigation.goBack();
-                    },
-                  },
-                ]
-              );
-
-              // Acknowledge purchase (Android)
-              if (purchase.purchaseStateAndroid === 1 && purchaseToken) {
-                await IAP.acknowledgePurchaseAndroid(purchaseToken);
-              }
-              
-              // Finish transaction (iOS)
-              await IAP.finishTransaction({ purchase });
-            } else {
-              Alert.alert('Error', 'Failed to verify purchase. Please contact support.');
-            }
-          }
-
-          purchaseUpdateSubscription.remove();
-        }
-      );
-
-      const purchaseErrorSubscription = IAP.purchaseErrorListener((error: any) => {
-        console.warn('Purchase error:', error);
-        if (error.code !== 'E_USER_CANCELLED') {
-          Alert.alert('Purchase Failed', error.message);
-        }
-        purchaseErrorSubscription.remove();
-      });
-    } catch (error: any) {
-      console.error('Purchase error:', error);
-      if (error.code !== 'E_USER_CANCELLED') {
-        Alert.alert('Purchase Failed', error.message || 'Unable to complete purchase');
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    await subscribe(productId);
+    
+    // Note: The purchase success/error is handled in the usePurchases hook
+    // After successful purchase, user should refresh to see updated subscription
   };
 
   const renderCheckmark = (value: boolean | string) => {
@@ -163,8 +58,6 @@ const SubscriptionScreen = ({ navigation }: SubscriptionScreenProps) => {
     if (value === false) return '—';
     return value;
   };
-
-  const currentTier = user?.subscriptionTier || 'free';
 
   return (
     <ScrollView style={styles.container}>
@@ -175,114 +68,129 @@ const SubscriptionScreen = ({ navigation }: SubscriptionScreenProps) => {
         </Text>
       </View>
 
-      {/* Feature Comparison Table */}
-      <View style={styles.tableContainer}>
-        <View style={styles.tableHeader}>
-          <View style={[styles.col, styles.featureCol]}>
-            <Text style={styles.tableHeaderText}>Features</Text>
-          </View>
-          <View style={styles.col}>
-            <Text style={styles.tableHeaderText}>Free</Text>
-          </View>
-          <View style={styles.col}>
-            <Text style={styles.tableHeaderText}>Lite</Text>
-          </View>
-          <View style={styles.col}>
-            <Text style={styles.tableHeaderText}>Pro</Text>
-          </View>
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading subscription options...</Text>
         </View>
+      )}
 
-        {FEATURES.map((feature, index) => (
-          <View key={index} style={styles.tableRow}>
-            <View style={[styles.col, styles.featureCol]}>
-              <Text style={styles.featureText}>{feature.name}</Text>
+      {!loading && (
+        <>
+          {/* Feature Comparison Table */}
+          <View style={styles.tableContainer}>
+            <View style={styles.tableHeader}>
+              <View style={[styles.col, styles.featureCol]}>
+                <Text style={styles.tableHeaderText}>Features</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.tableHeaderText}>Free</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.tableHeaderText}>Lite</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.tableHeaderText}>Pro</Text>
+              </View>
             </View>
-            <View style={styles.col}>
-              <Text style={styles.valueText}>{renderCheckmark(feature.free)}</Text>
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.valueText}>{renderCheckmark(feature.lite)}</Text>
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.valueText}>{renderCheckmark(feature.pro)}</Text>
-            </View>
+
+            {FEATURES.map((feature, index) => (
+              <View key={index} style={styles.tableRow}>
+                <View style={[styles.col, styles.featureCol]}>
+                  <Text style={styles.featureText}>{feature.name}</Text>
+                </View>
+                <View style={styles.col}>
+                  <Text style={styles.valueText}>{renderCheckmark(feature.free)}</Text>
+                </View>
+                <View style={styles.col}>
+                  <Text style={styles.valueText}>{renderCheckmark(feature.lite)}</Text>
+                </View>
+                <View style={styles.col}>
+                  <Text style={styles.valueText}>{renderCheckmark(feature.pro)}</Text>
+                </View>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
 
-      {/* Plan Cards */}
-      <View style={styles.plans}>
-        {/* Free Plan */}
-        <View style={[styles.planCard, currentTier === 'free' && styles.currentPlan]}>
-          <Text style={styles.planName}>Free</Text>
-          <Text style={styles.planPrice}>$0/mo</Text>
-          <Text style={styles.planDescription}>30 minutes per month</Text>
-          {currentTier === 'free' && (
-            <View style={styles.currentBadge}>
-              <Text style={styles.currentBadgeText}>Current Plan</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Lite Plan */}
-        <View style={[styles.planCard, currentTier === 'lite' && styles.currentPlan]}>
-          <Text style={styles.planName}>Lite</Text>
-          <Text style={styles.planPrice}>$9/mo</Text>
-          <Text style={styles.planDescription}>300 minutes per month</Text>
-          {currentTier === 'lite' ? (
-            <View style={styles.currentBadge}>
-              <Text style={styles.currentBadgeText}>Current Plan</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={[styles.upgradeButton, isLoading && styles.buttonDisabled]}
-              onPress={() => handlePurchase(SUBSCRIPTION_SKUS.lite, 'Lite')}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.upgradeButtonText}>Upgrade</Text>
+          {/* Plan Cards */}
+          <View style={styles.plans}>
+            {/* Free Plan */}
+            <View style={[styles.planCard, currentTier === 'free' && styles.currentPlan]}>
+              <Text style={styles.planName}>Free</Text>
+              <Text style={styles.planPrice}>$0/mo</Text>
+              <Text style={styles.planDescription}>30 minutes per month</Text>
+              {currentTier === 'free' && (
+                <View style={styles.currentBadge}>
+                  <Text style={styles.currentBadgeText}>Current Plan</Text>
+                </View>
               )}
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Pro Plan */}
-        <View style={[styles.planCard, styles.proPlan, currentTier === 'pro' && styles.currentPlan]}>
-          <View style={styles.popularBadge}>
-            <Text style={styles.popularText}>POPULAR</Text>
-          </View>
-          <Text style={styles.planName}>Pro</Text>
-          <Text style={styles.planPrice}>$19/mo</Text>
-          <Text style={styles.planDescription}>Unlimited minutes</Text>
-          {currentTier === 'pro' ? (
-            <View style={styles.currentBadge}>
-              <Text style={styles.currentBadgeText}>Current Plan</Text>
             </View>
-          ) : (
-            <TouchableOpacity
-              style={[styles.upgradeButton, styles.proButton, isLoading && styles.buttonDisabled]}
-              onPress={() => handlePurchase(SUBSCRIPTION_SKUS.pro, 'Pro')}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.upgradeButtonText}>Upgrade</Text>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          • Subscriptions auto-renew unless canceled 24 hours before renewal{'\n'}
-          • Manage subscriptions in Google Play Store{'\n'}
-          • Cancel anytime
-        </Text>
-      </View>
+            {/* Lite Plan */}
+            <View style={[styles.planCard, currentTier === 'lite' && styles.currentPlan]}>
+              <Text style={styles.planName}>Lite</Text>
+              <Text style={styles.planPrice}>
+                {liteProduct?.displayPrice || '$4.99'}/mo
+              </Text>
+              <Text style={styles.planDescription}>120 minutes per month</Text>
+              {currentTier === 'lite' ? (
+                <View style={styles.currentBadge}>
+                  <Text style={styles.currentBadgeText}>Current Plan</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.upgradeButton, purchasing && styles.buttonDisabled]}
+                  onPress={() => handlePurchase(PRODUCT_IDS.LITE, 'Lite')}
+                  disabled={purchasing}
+                >
+                  {purchasing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.upgradeButtonText}>Upgrade</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Pro Plan */}
+            <View style={[styles.planCard, styles.proPlan, currentTier === 'pro' && styles.currentPlan]}>
+              <View style={styles.popularBadge}>
+                <Text style={styles.popularText}>POPULAR</Text>
+              </View>
+              <Text style={styles.planName}>Pro</Text>
+              <Text style={styles.planPrice}>
+                {proProduct?.displayPrice || '$14.99'}/mo
+              </Text>
+              <Text style={styles.planDescription}>Unlimited minutes</Text>
+              {currentTier === 'pro' ? (
+                <View style={styles.currentBadge}>
+                  <Text style={styles.currentBadgeText}>Current Plan</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.upgradeButton, styles.proButton, purchasing && styles.buttonDisabled]}
+                  onPress={() => handlePurchase(PRODUCT_IDS.PRO, 'Pro')}
+                  disabled={purchasing}
+                >
+                  {purchasing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.upgradeButtonText}>Upgrade</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              • Subscriptions auto-renew unless canceled 24 hours before renewal{'\n'}
+              • Manage subscriptions in Google Play Store{'\n'}
+              • Cancel anytime
+            </Text>
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 };
@@ -291,6 +199,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#666',
   },
   header: {
     padding: 24,

@@ -5,22 +5,39 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#10b981"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "android": {
       "package": "com.recaply.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#10b981"
+      },
       "permissions": [
         "RECORD_AUDIO",
         "WRITE_EXTERNAL_STORAGE",
         "READ_EXTERNAL_STORAGE"
-      ]
+      ],
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.recaply.app"
     },
     "extra": {
       "eas": {
         "projectId": "9ca8f320-499c-4321-824a-8e915cea71c4"
       }
     },
-    "owner": "platinummorgan"
+    "owner": "platinummorgan",
+    "description": "Transform your voice into organized, searchable notes with AI-powered transcription and summarization.",
+    "privacy": "public",
+    "plugins": [
+      "react-native-iap"
+    ]
   }
 }
