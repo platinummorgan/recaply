@@ -108,18 +108,26 @@ router.post('/google', async (req: Request, res: Response) => {
   try {
     const { idToken } = req.body;
 
+    console.log('Google Sign-In request received');
+    console.log('GOOGLE_CLIENT_ID configured:', process.env.GOOGLE_CLIENT_ID ? 'Yes' : 'No');
+
     if (!idToken) {
+      console.log('Error: No idToken provided');
       return res.status(400).json({ error: 'Google ID token required' });
     }
 
     // Verify Google ID token
+    console.log('Verifying Google ID token...');
     const ticket = await googleClient.verifyIdToken({
       idToken,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
+    console.log('Token verified, email:', payload?.email);
+    
     if (!payload || !payload.email) {
+      console.log('Error: No payload or email in token');
       return res.status(401).json({ error: 'Invalid Google token' });
     }
 
