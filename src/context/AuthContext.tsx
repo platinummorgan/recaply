@@ -1,5 +1,7 @@
 import { createContext, useState, useContext, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { configureGoogleSignIn } from '../config/googleSignIn';
 
 const API_URL = 'https://web-production-abd11.up.railway.app';
 const TOKEN_KEY = 'recaply_auth_token';
@@ -17,6 +19,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -29,8 +32,9 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load token on mount
+  // Configure Google Sign-In on mount
   useEffect(() => {
+    configureGoogleSignIn();
     loadToken();
   }, []);
 
@@ -132,11 +136,68 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
 
   const logout = async () => {
     try {
+      // Sign out from Google if signed in
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {
+        // Ignore if not signed in
+      }
+      
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       setToken(null);
       setUser(null);
     } catch (error) {
       console.error('Error during logout:', error);
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      console.log('Checking Play Services...');
+      await GoogleSignin.hasPlayServices();
+      
+      console.log('Starting Google Sign-In...');
+      const userInfo = await GoogleSignin.signIn();
+      console.log('Google Sign-In successful, user:', userInfo.data?.user?.email);
+      
+      const idToken = userInfo.data?.idToken;
+      if (!idToken) {
+        throw new Error('No ID token received from Google');
+      }
+      
+      console.log('Sending token to backend...');
+      // Send Google ID token to backend for verification
+      const response = await fetch(`${API_URL}/api/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          idToken: idToken,
+        }),
+      });
+
+      console.log('Backend response status:', response.status);
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Backend error:', error);
+        throw new Error(error.error || 'Google sign-in failed');
+      }
+
+      const data = await response.json();
+      console.log('Authentication successful!');
+      
+      // Store token securely
+      await SecureStore.setItemAsync(TOKEN_KEY, data.token);
+      setToken(data.token);
+      setUser(data.user);
+    } catch (error: any) {
+      console.error('Google Sign-In Error:', error);
+      if (error.message) {
+        throw new Error(error.message);
+      }
+      throw new Error('Google sign-in failed. Please try again.');
     }
   };
 
@@ -153,6 +214,7 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
         token,
         isLoading,
         login,
+        loginWithGoogle,
         register,
         logout,
         refreshUser,

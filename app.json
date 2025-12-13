@@ -2,7 +2,7 @@
   "expo": {
     "name": "Recaply",
     "slug": "recaply",
-    "version": "1.0.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
@@ -16,7 +16,7 @@
     ],
     "android": {
       "package": "com.recaply.app",
-      "versionCode": 1,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#10b981"
@@ -37,7 +37,8 @@
     "description": "Transform your voice into organized, searchable notes with AI-powered transcription and summarization.",
     "privacy": "public",
     "plugins": [
-      "react-native-iap"
+      "react-native-iap",
+      "@react-native-google-signin/google-signin"
     ]
   }
 }

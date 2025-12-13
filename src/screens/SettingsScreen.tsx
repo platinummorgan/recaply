@@ -8,8 +8,6 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
-  Modal,
-  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSettings, updateSettings as updateAppSettings, getPendingCount } from '../services/storage';
@@ -30,10 +28,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
   const [allowCellular, setAllowCellular] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customMinutes, setCustomMinutes] = useState('');
-
-  const API_URL = 'https://web-production-abd11.up.railway.app';
 
   useEffect(() => {
     loadNetworkSettings();
@@ -136,64 +130,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
         },
       ],
     );
-  };
-
-  const setUsage = async (minutes: number) => {
-    try {
-      const response = await fetch(`${API_URL}/api/user/set-usage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ minutesUsed: minutes }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to set usage');
-      }
-
-      await refreshUser();
-      Alert.alert('Success', `Usage set to ${minutes} minutes`);
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    }
-  };
-
-  const testUsageScenarios = () => {
-    Alert.alert(
-      'Test Usage Scenarios',
-      'Choose a scenario to test:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Custom Amount...', onPress: () => promptCustomUsage() },
-        { text: 'Reset to 0', onPress: () => setUsage(0) },
-        { text: 'Set to 5', onPress: () => setUsage(5) },
-        { text: 'Set to 15', onPress: () => setUsage(15) },
-        { text: 'Set to 27 (90%)', onPress: () => setUsage(27) },
-        { text: 'Set to 28', onPress: () => setUsage(28) },
-        { text: 'Set to 29', onPress: () => setUsage(29) },
-        { text: 'Set to 29.5 (near limit)', onPress: () => setUsage(29.5) },
-        { text: 'Set to 30 (at limit)', onPress: () => setUsage(30) },
-        { text: 'Set to 31 (over limit)', onPress: () => setUsage(31) },
-      ],
-      { cancelable: true }
-    );
-  };
-
-  const promptCustomUsage = () => {
-    setCustomMinutes('');
-    setShowCustomInput(true);
-  };
-
-  const handleSetCustomUsage = () => {
-    const minutes = parseFloat(customMinutes);
-    if (isNaN(minutes) || minutes < 0) {
-      Alert.alert('Invalid Input', 'Please enter a valid number.');
-      return;
-    }
-    setShowCustomInput(false);
-    setUsage(minutes);
   };
 
   return (
@@ -339,16 +275,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Danger Zone</Text>
+        <Text style={styles.sectionTitle}>Account Actions</Text>
         
         <TouchableOpacity
-          style={[styles.button, styles.testButton]}
-          onPress={testUsageScenarios}>
-          <Text style={[styles.buttonText, styles.testText]}>🧪 Test Usage Scenarios</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.button, styles.dangerButton, {marginTop: 12}]}
+          style={[styles.button, styles.dangerButton]}
           onPress={handleLogout}>
           <Text style={[styles.buttonText, styles.dangerText]}>Logout</Text>
         </TouchableOpacity>
@@ -364,46 +294,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
         <Text style={styles.version}>Recaply v1.0.0</Text>
         <Text style={styles.copyright}>© 2025 Recaply. All rights reserved.</Text>
       </View>
-
-      {/* Custom Usage Input Modal */}
-      <Modal
-        visible={showCustomInput}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowCustomInput(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Set Custom Usage</Text>
-            <Text style={styles.modalDescription}>Enter minutes used (0-999):</Text>
-            
-            <TextInput
-              style={styles.modalInput}
-              value={customMinutes}
-              onChangeText={setCustomMinutes}
-              keyboardType="numeric"
-              placeholder="e.g., 28"
-              autoFocus={true}
-            />
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setShowCustomInput(false)}
-              >
-                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleSetCustomUsage}
-              >
-                <Text style={styles.modalButtonText}>Set</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 };
@@ -543,74 +433,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
-  },
-  testButton: {
-    backgroundColor: '#f59e0b',
-    borderWidth: 1,
-    borderColor: '#d97706',
-  },
-  testText: {
-    color: '#fff',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 24,
-    width: '80%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#333',
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  modalButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  modalButtonCancel: {
-    backgroundColor: '#f3f4f6',
-  },
-  modalButtonConfirm: {
-    backgroundColor: '#6366f1',
-  },
-  modalButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalButtonTextCancel: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 
