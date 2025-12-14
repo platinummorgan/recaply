@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import GoogleLogo from '../components/GoogleLogo';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,7 +20,7 @@ interface RegisterScreenProps {
 }
 
 const RegisterScreen = ({ navigation }: RegisterScreenProps) => {
-  const { register, loginWithGoogle } = useAuth();
+  const { register, loginWithGoogle, loginWithApple } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -143,6 +144,25 @@ const RegisterScreen = ({ navigation }: RegisterScreenProps) => {
               <Text style={styles.dividerText}>OR</Text>
               <View style={styles.dividerLine} />
             </View>
+
+            {/* Apple Sign-In Button (iOS only) */}
+            {Platform.OS === 'ios' && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={8}
+                style={styles.appleButton}
+                onPress={async () => {
+                  try {
+                    await loginWithApple();
+                  } catch (error: any) {
+                    if (error.message) {
+                      Alert.alert('Apple Sign-In Failed', error.message);
+                    }
+                  }
+                }}
+              />
+            )}
 
             {/* Google Sign-In Button */}
             <TouchableOpacity
@@ -290,6 +310,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  appleButton: {
+    width: '100%',
+    height: 50,
+    marginBottom: 12,
   },
   googleButton: {
     backgroundColor: '#fff',

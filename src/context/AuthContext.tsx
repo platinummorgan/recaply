@@ -1,6 +1,7 @@
 import { createContext, useState, useContext, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { configureGoogleSignIn } from '../config/googleSignIn';
 
 const API_URL = 'https://web-production-abd11.up.railway.app';
@@ -20,6 +21,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
+  loginWithApple: () => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -201,6 +203,49 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
     }
   };
 
+  const loginWithApple = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      // Send Apple credentials to backend
+      const response = await fetch(`${API_URL}/api/auth/apple`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          identityToken: credential.identityToken,
+          user: credential.user,
+          email: credential.email,
+          fullName: credential.fullName,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Apple sign-in failed');
+      }
+
+      const data = await response.json();
+      
+      // Store token securely
+      await SecureStore.setItemAsync(TOKEN_KEY, data.token);
+      setToken(data.token);
+      setUser(data.user);
+    } catch (error: any) {
+      if (error.code === 'ERR_REQUEST_CANCELED') {
+        // User canceled the sign-in flow
+        return;
+      }
+      throw new Error(error.message || 'Apple sign-in failed');
+    }
+  };
+
   const refreshUser = async () => {
     if (token) {
       await fetchUserInfo(token);
@@ -215,6 +260,7 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
         isLoading,
         login,
         loginWithGoogle,
+        loginWithApple,
         register,
         logout,
         refreshUser,

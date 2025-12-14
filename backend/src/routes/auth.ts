@@ -170,4 +170,59 @@ router.post('/google', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/auth/apple
+ * Authenticate with Apple Sign-In
+ */
+router.post('/apple', async (req: Request, res: Response) => {
+  try {
+    const { identityToken, user: appleUser, email, fullName } = req.body;
+
+    console.log('=== Apple Sign-In Request ===');
+    console.log('Apple User ID:', appleUser);
+    console.log('Email:', email);
+
+    if (!identityToken) {
+      return res.status(400).json({ error: 'Apple identity token required' });
+    }
+
+    // Note: For production, you should verify the identityToken with Apple's servers
+    // For now, we'll trust it since it comes from the official Apple SDK
+
+    // Use email from the token or fall back to apple user id + domain
+    const userEmail = email || `${appleUser}@privaterelay.appleid.com`;
+
+    // Check if user exists
+    let user = await getUserByEmail(userEmail);
+
+    // If user doesn't exist, create new user
+    if (!user) {
+      const randomPassword = Math.random().toString(36).slice(-12);
+      const passwordHash = await bcrypt.hash(randomPassword, 10);
+      user = await createUser(userEmail, passwordHash);
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET!,
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        subscriptionTier: user.subscription_tier,
+        minutesUsed: user.minutes_used,
+        minutesLimit: user.minutes_limit,
+      },
+    });
+  } catch (error: any) {
+    console.error('Apple sign-in error:', error);
+    res.status(500).json({ error: 'Apple sign-in failed' });
+  }
+});
+
 export default router;

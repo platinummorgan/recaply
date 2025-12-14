@@ -38,7 +38,13 @@
     "privacy": "public",
     "plugins": [
       "react-native-iap",
-      "@react-native-google-signin/google-signin"
-    ]
+      "@react-native-google-signin/google-signin",
+      "expo-secure-store",
+      "expo-apple-authentication"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.recaply.app",
+      "usesAppleSignIn": true
+    }
   }
 }
