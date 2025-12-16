@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSettings, updateSettings as updateAppSettings, getPendingCount } from '../services/storage';
@@ -269,9 +270,30 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Legal & Privacy</Text>
-        <Text style={styles.settingLabel}>Privacy Policy - Coming Soon</Text>
-        <Text style={styles.settingLabel}>Terms of Service - Coming Soon</Text>
-        <Text style={styles.settingLabel}>Data Usage - Coming Soon</Text>
+        
+        <TouchableOpacity 
+          style={styles.settingRow}
+          onPress={() => Linking.openURL('https://raw.githubusercontent.com/platinummorgan/recaply/main/docs/privacy.html')}
+        >
+          <Text style={styles.settingLabel}>Privacy Policy</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.settingRow}
+          onPress={() => Linking.openURL('https://raw.githubusercontent.com/platinummorgan/recaply/main/docs/terms.html')}
+        >
+          <Text style={styles.settingLabel}>Terms of Service</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.settingRow}
+          onPress={() => navigation.navigate('DataUsage')}
+        >
+          <Text style={styles.settingLabel}>Data Usage</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -415,6 +437,11 @@ const styles = StyleSheet.create({
   settingInfo: {
     flex: 1,
     marginRight: 12,
+  },
+  chevron: {
+    fontSize: 20,
+    color: '#999',
+    marginLeft: 8,
   },
   settingDescription: {
     fontSize: 12,
