@@ -25,7 +25,7 @@ async function verifyAppleReceipt(receiptData: string, expectedProductId: string
       }),
     });
 
-    let result = await response.json();
+    let result: any = await response.json();
 
     // If production returns sandbox receipt error (21007), try sandbox
     if (result.status === 21007) {
