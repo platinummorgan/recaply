@@ -193,11 +193,11 @@ const SubscriptionScreen = ({ navigation }: SubscriptionScreenProps) => {
             </Text>
             
             <View style={styles.legalLinks}>
-              <TouchableOpacity onPress={() => Linking.openURL('https://raw.githubusercontent.com/platinummorgan/recaply/main/docs/terms.html')}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://htmlpreview.github.io/?https://github.com/platinummorgan/recaply/blob/main/docs/terms.html')}>
                 <Text style={styles.linkText}>Terms of Use (EULA)</Text>
               </TouchableOpacity>
               <Text style={styles.linkSeparator}> • </Text>
-              <TouchableOpacity onPress={() => Linking.openURL('https://raw.githubusercontent.com/platinummorgan/recaply/main/docs/privacy.html')}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://htmlpreview.github.io/?https://github.com/platinummorgan/recaply/blob/main/docs/privacy.html')}>
                 <Text style={styles.linkText}>Privacy Policy</Text>
               </TouchableOpacity>
             </View>

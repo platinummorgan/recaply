@@ -61,12 +61,18 @@ export function usePurchases() {
   // Fetch products when connected
   useEffect(() => {
     if (connected) {
+      console.log('IAP connected, fetching products:', Object.values(PRODUCT_IDS));
       fetchProducts({
         skus: Object.values(PRODUCT_IDS),
         type: 'subs',
       });
     }
   }, [connected]);
+
+  // Log subscriptions when they change
+  useEffect(() => {
+    console.log('Available subscriptions:', subscriptions.length, subscriptions.map(s => s.id));
+  }, [subscriptions]);
 
   const verifyPurchase = async (purchase: Purchase) => {
     try {

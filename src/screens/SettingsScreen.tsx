@@ -10,13 +10,17 @@ import {
   ActivityIndicator,
   Linking,
 } from 'react-native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSettings, updateSettings as updateAppSettings, getPendingCount } from '../services/storage';
 import { processQueue } from '../services/uploadQueue';
 import { useAuth } from '../context/AuthContext';
+import { RootStackParamList } from '../navigation/AppNavigator';
+
+type SettingsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Settings'>;
 
 interface SettingsScreenProps {
-  navigation: any;
+  navigation: SettingsScreenNavigationProp;
 }
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
@@ -264,16 +268,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>AI & Services</Text>
-        <Text style={styles.settingLabel}>LLM Configuration - Coming Soon</Text>
-      </View>
-
-      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Legal & Privacy</Text>
         
         <TouchableOpacity 
           style={styles.settingRow}
-          onPress={() => Linking.openURL('https://raw.githubusercontent.com/platinummorgan/recaply/main/docs/privacy.html')}
+          onPress={() => Linking.openURL('https://htmlpreview.github.io/?https://github.com/platinummorgan/recaply/blob/main/docs/privacy.html')}
         >
           <Text style={styles.settingLabel}>Privacy Policy</Text>
           <Text style={styles.chevron}>›</Text>
@@ -281,17 +280,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
 
         <TouchableOpacity 
           style={styles.settingRow}
-          onPress={() => Linking.openURL('https://raw.githubusercontent.com/platinummorgan/recaply/main/docs/terms.html')}
+          onPress={() => Linking.openURL('https://htmlpreview.github.io/?https://github.com/platinummorgan/recaply/blob/main/docs/terms.html')}
         >
           <Text style={styles.settingLabel}>Terms of Service</Text>
-          <Text style={styles.chevron}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.settingRow}
-          onPress={() => navigation.navigate('DataUsage')}
-        >
-          <Text style={styles.settingLabel}>Data Usage</Text>
           <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
       </View>
