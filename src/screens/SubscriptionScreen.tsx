@@ -7,6 +7,8 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Linking,
+  Platform,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { usePurchases } from '../hooks/usePurchases';
@@ -185,9 +187,20 @@ const SubscriptionScreen = ({ navigation }: SubscriptionScreenProps) => {
           <View style={styles.footer}>
             <Text style={styles.footerText}>
               • Subscriptions auto-renew unless canceled 24 hours before renewal{'\n'}
-              • Manage subscriptions in Google Play Store{'\n'}
-              • Cancel anytime
+              • Manage subscriptions in your account settings{'\n'}
+              • Cancel anytime{'\n'}
+              • Payment charged to your account at confirmation
             </Text>
+            
+            <View style={styles.legalLinks}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://raw.githubusercontent.com/platinummorgan/recaply/main/docs/terms.html')}>
+                <Text style={styles.linkText}>Terms of Use (EULA)</Text>
+              </TouchableOpacity>
+              <Text style={styles.linkSeparator}> • </Text>
+              <TouchableOpacity onPress={() => Linking.openURL('https://raw.githubusercontent.com/platinummorgan/recaply/main/docs/privacy.html')}>
+                <Text style={styles.linkText}>Privacy Policy</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </>
       )}
@@ -356,6 +369,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     lineHeight: 18,
+    marginBottom: 16,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  linkText: {
+    fontSize: 12,
+    color: '#007AFF',
+    textDecorationLine: 'underline',
+  },
+  linkSeparator: {
+    fontSize: 12,
+    color: '#999',
   },
 });
 

@@ -46,7 +46,7 @@
       <true/>
     </dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <string>Recaply needs access to your microphone to record voice memos and conversations, which are then transcribed using AI technology. For example, you can record meeting notes, personal reminders, or interviews that will be automatically converted to searchable text.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>

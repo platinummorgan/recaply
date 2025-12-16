@@ -4,6 +4,70 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// Apple receipt verification endpoints
+const APPLE_PRODUCTION_URL = 'https://buy.itunes.apple.com/verifyReceipt';
+const APPLE_SANDBOX_URL = 'https://sandbox.itunes.apple.com/verifyReceipt';
+
+/**
+ * Verify iOS receipt with Apple
+ * Handles both production and sandbox environments
+ */
+async function verifyAppleReceipt(receiptData: string, expectedProductId: string): Promise<boolean> {
+  try {
+    // First try production
+    let response = await fetch(APPLE_PRODUCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        'receipt-data': receiptData,
+        'password': process.env.APPLE_SHARED_SECRET || '',
+        'exclude-old-transactions': true,
+      }),
+    });
+
+    let result = await response.json();
+
+    // If production returns sandbox receipt error (21007), try sandbox
+    if (result.status === 21007) {
+      console.log('[Purchases] Sandbox receipt detected, trying sandbox environment');
+      response = await fetch(APPLE_SANDBOX_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'receipt-data': receiptData,
+          'password': process.env.APPLE_SHARED_SECRET || '',
+          'exclude-old-transactions': true,
+        }),
+      });
+      result = await response.json();
+    }
+
+    // Check if verification succeeded
+    if (result.status !== 0) {
+      console.error('[Purchases] Apple receipt verification failed:', result.status);
+      return false;
+    }
+
+    // Verify the product ID matches
+    const latestReceipt = result.latest_receipt_info?.[0] || result.receipt?.in_app?.[0];
+    if (!latestReceipt) {
+      console.error('[Purchases] No receipt info found');
+      return false;
+    }
+
+    if (latestReceipt.product_id !== expectedProductId) {
+      console.error('[Purchases] Product ID mismatch:', latestReceipt.product_id, 'vs', expectedProductId);
+      return false;
+    }
+
+    console.log('[Purchases] Apple receipt verified successfully');
+    return true;
+  } catch (error) {
+    console.error('[Purchases] Error verifying Apple receipt:', error);
+    return false;
+  }
+}
+
 /**
  * Verify a purchase from Google Play or Apple App Store
  * After verification, update the user's subscription tier
@@ -26,12 +90,15 @@ router.post('/verify', authenticate, async (req: AuthRequest, res: Response) => 
       purchaseToken: purchaseToken.substring(0, 20) + '...',
     });
 
-    // TODO: Implement actual verification with Google Play Billing or Apple App Store
-    // For now, we trust the client (for closed testing only!)
-    // In production, you MUST verify with the store servers:
-    //
-    // Android: https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions/get
-    // iOS: https://developer.apple.com/documentation/appstorereceipts/verifyreceipt
+    // Verify receipt with Apple/Google
+    if (platform === 'ios' && transactionReceipt) {
+      const isValid = await verifyAppleReceipt(transactionReceipt, productId);
+      if (!isValid) {
+        return res.status(400).json({ error: 'Invalid receipt' });
+      }
+    }
+    // Note: Android verification would go here for production
+    // For now we accept Android purchases (sandbox testing)
 
     // Map product IDs to subscription tiers
     let tier: 'lite' | 'pro' = 'lite';
