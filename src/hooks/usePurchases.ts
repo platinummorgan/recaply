@@ -21,6 +21,7 @@ export function usePurchases() {
     requestPurchase,
     finishTransaction,
     fetchProducts,
+    getAvailablePurchases,
   } = useIAP({
     onPurchaseSuccess: async (purchase: Purchase) => {
       console.log('Purchase successful:', purchase);
@@ -148,11 +149,56 @@ export function usePurchases() {
     return subscriptions.find((p) => p.id === productId);
   };
 
+  const restorePurchases = async () => {
+    try {
+      setPurchasing(true);
+      console.log('Restoring purchases...');
+      
+      const purchases = await getAvailablePurchases();
+      console.log('Available purchases:', purchases.length);
+
+      if (purchases.length === 0) {
+        Alert.alert(
+          'No Purchases Found',
+          'No previous purchases were found to restore.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Verify each purchase with backend
+      for (const purchase of purchases) {
+        try {
+          await verifyPurchase(purchase);
+          await finishTransaction({ purchase, isConsumable: false });
+        } catch (error) {
+          console.error('Error verifying restored purchase:', error);
+        }
+      }
+
+      Alert.alert(
+        'Success!',
+        'Your purchases have been restored.',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('Error restoring purchases:', error);
+      Alert.alert(
+        'Error',
+        'Failed to restore purchases. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
   return {
     products: subscriptions,
     loading: !connected,
     purchasing,
     subscribe,
+    restorePurchases,
     getProduct,
     PRODUCT_IDS,
   };

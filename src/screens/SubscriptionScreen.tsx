@@ -35,7 +35,7 @@ const FEATURES: PlanFeature[] = [
 
 const SubscriptionScreen = ({ navigation }: SubscriptionScreenProps) => {
   const { user, refreshUser } = useAuth();
-  const { products, loading, purchasing, subscribe, getProduct, PRODUCT_IDS } = usePurchases();
+  const { products, loading, purchasing, subscribe, restorePurchases, getProduct, PRODUCT_IDS } = usePurchases();
 
   const currentTier = user?.subscriptionTier || 'free';
 
@@ -192,6 +192,16 @@ const SubscriptionScreen = ({ navigation }: SubscriptionScreenProps) => {
               • Payment charged to your account at confirmation
             </Text>
             
+            <TouchableOpacity 
+              style={styles.restoreButton}
+              onPress={restorePurchases}
+              disabled={purchasing}
+            >
+              <Text style={styles.restoreButtonText}>
+                {purchasing ? 'Restoring...' : 'Restore Purchases'}
+              </Text>
+            </TouchableOpacity>
+
             <View style={styles.legalLinks}>
               <TouchableOpacity onPress={() => Linking.openURL('https://htmlpreview.github.io/?https://github.com/platinummorgan/recaply/blob/main/docs/terms.html')}>
                 <Text style={styles.linkText}>Terms of Use (EULA)</Text>
@@ -370,6 +380,16 @@ const styles = StyleSheet.create({
     color: '#999',
     lineHeight: 18,
     marginBottom: 16,
+  },
+  restoreButton: {
+    padding: 16,
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  restoreButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
   },
   legalLinks: {
     flexDirection: 'row',
