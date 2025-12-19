@@ -17,6 +17,9 @@ dotenv.config();
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
 
+// Trust proxy - required for Railway/cloud deployments
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 app.use(cors({
