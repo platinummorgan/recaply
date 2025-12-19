@@ -45,7 +45,11 @@ app.get('/health', (req, res) => {
 });
 
 // Serve static docs (privacy policy, data deletion)
-app.use('/docs', express.static(path.join(__dirname, '../docs')));
+// In production, Railway builds to dist/, so docs should be at project root
+const docsPath = process.env.NODE_ENV === 'production' 
+  ? path.join(process.cwd(), 'docs')
+  : path.join(__dirname, '../docs');
+app.use('/docs', express.static(docsPath));
 
 // API Routes
 app.use('/api/auth', authRoutes);
