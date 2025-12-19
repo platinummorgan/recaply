@@ -1,7 +1,7 @@
 import express, { Router, Response } from 'express';
 import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { transcribeAudio } from '../services/transcription';
+import { transcribeAudio } from '../services/chunkedTranscription';
 import { generateSummary } from '../services/llm';
 import { hasAvailableMinutes, deductMinutes, saveRecording, updateRecordingSummary, getRecordings, getUserRecordings, getRecording, deleteRecording, uploadAudioFile } from '../services/supabase';
 import { combineAudioSegments } from '../services/audioProcessor';
