@@ -61,6 +61,7 @@ async function uploadRecording(item: QueuedUpload): Promise<void> {
       body: formData,
       headers: {
         'Content-Type': 'multipart/form-data',
+        'Authorization': `Bearer ${item.token}`,
       },
     });
 

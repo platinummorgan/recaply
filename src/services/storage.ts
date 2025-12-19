@@ -9,6 +9,7 @@ export interface QueuedUpload {
   filename: string;
   timestamp: number;
   status: 'pending' | 'uploading' | 'completed' | 'failed';
+  token: string;
 }
 
 export interface AppSettings {
@@ -37,7 +38,7 @@ export async function getUploadQueue(): Promise<QueuedUpload[]> {
 /**
  * Add a new recording to the upload queue
  */
-export async function addToQueue(audioUri: string, filename: string): Promise<string> {
+export async function addToQueue(audioUri: string, filename: string, token: string): Promise<string> {
   try {
     const queue = await getUploadQueue();
     const newUpload: QueuedUpload = {
@@ -46,6 +47,7 @@ export async function addToQueue(audioUri: string, filename: string): Promise<st
       filename,
       timestamp: Date.now(),
       status: 'pending',
+      token,
     };
     queue.push(newUpload);
     await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));

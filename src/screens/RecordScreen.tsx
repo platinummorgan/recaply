@@ -328,7 +328,7 @@ export default function RecordScreen({ navigation }: any) {
       } else {
         // Queue for later
         console.log('Queueing for later:', uploadStatus.reason);
-        await addToQueue(savedFileUri, savedFilename);
+        await addToQueue(savedFileUri, savedFilename, token);
         
         Alert.alert(
           'Saved for Later',
@@ -435,7 +435,7 @@ export default function RecordScreen({ navigation }: any) {
         
         try {
           if (savedFileUri && savedFilename) {
-            await addToQueue(savedFileUri, savedFilename);
+            await addToQueue(savedFileUri, savedFilename, token);
           }
           
           if (err.name === 'AbortError') {
