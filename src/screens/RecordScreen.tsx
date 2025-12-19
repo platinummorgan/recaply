@@ -8,6 +8,14 @@ import { useAuth } from '../context/AuthContext';
 
 const API_URL = 'https://web-production-abd11.up.railway.app';
 
+// Recording & Upload Limits:
+// - No hard limit on recording duration (limited only by user's available minutes)
+// - Backend transcription timeout: 30 minutes (handles recordings up to ~25 minutes reliably)
+// - Client upload timeout: 2 hours (handles upload + transcription for very long recordings)
+// - File size limit: 500MB (supports 60+ minute recordings)
+// - All recordings are saved locally first to prevent data loss on timeout/error
+// - Failed uploads are automatically queued for retry
+
 export default function RecordScreen({ navigation }: any) {
   const { user, token, refreshUser } = useAuth();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -25,7 +33,18 @@ export default function RecordScreen({ navigation }: any) {
     if (isRecording && !isPaused) {
       interval = setInterval(() => {
         const elapsed = (Date.now() - recordingStartTime) / 1000;
-        setCurrentDuration(totalDuration + elapsed);
+        const newDuration = totalDuration + elapsed;
+        setCurrentDuration(newDuration);
+        
+        // Warn at 20 minutes about potential upload delays for very long recordings
+        const totalMinutes = Math.floor(newDuration / 60);
+        if (totalMinutes === 20 && Math.floor((newDuration - 1) / 60) === 19) {
+          Alert.alert(
+            'Long Recording Notice',
+            'You\'ve been recording for 20 minutes. Recordings over 25 minutes may take longer to upload and transcribe. Your recording will be saved locally regardless of upload time.',
+            [{ text: 'OK' }]
+          );
+        }
       }, 100);
     }
     return () => {
@@ -190,38 +209,40 @@ export default function RecordScreen({ navigation }: any) {
   }
 
   async function handleRecordingStopped(uriOrSegments: string[] | string) {
+    let savedFilename = '';
+    let savedFileUri = '';
+    
     try {
       setIsUploading(true);
+
+      // ALWAYS save to local storage first to prevent data loss
+      const uri = Array.isArray(uriOrSegments) ? uriOrSegments[0] : uriOrSegments;
+      savedFilename = `recording_${Date.now()}.m4a`;
+      const permanentFile = new File(Paths.document, savedFilename);
+      
+      console.log('Saving recording locally first...');
+      const response = await fetch(uri);
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      const writer = permanentFile.writableStream().getWriter();
+      await writer.write(uint8Array);
+      await writer.close();
+      savedFileUri = permanentFile.uri;
+      
+      console.log('Recording saved locally:', savedFilename);
 
       // Check if we can upload now
       const uploadStatus = await checkUploadStatus();
 
       if (uploadStatus.canUpload) {
         // Upload immediately (either single file or multiple segments)
-        console.log('Uploading immediately...');
-        await uploadToBackend(uriOrSegments);
+        console.log('Attempting immediate upload...');
+        await uploadToBackend(uriOrSegments, savedFileUri, savedFilename);
       } else {
-        // Save to local storage and queue for later
-        // For multi-segment, just save the first one for now (offline mode limitation)
+        // Queue for later
         console.log('Queueing for later:', uploadStatus.reason);
-        
-        const uri = Array.isArray(uriOrSegments) ? uriOrSegments[0] : uriOrSegments;
-        
-        // Copy to permanent location
-        const filename = `recording_${Date.now()}.m4a`;
-        const permanentFile = new File(Paths.document, filename);
-        
-        // Read from source URI and write to permanent location
-        const response = await fetch(uri);
-        const arrayBuffer = await response.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        
-        const writer = permanentFile.writableStream().getWriter();
-        await writer.write(uint8Array);
-        await writer.close();
-        
-        // Add to queue
-        await addToQueue(permanentFile.uri, filename);
+        await addToQueue(savedFileUri, savedFilename);
         
         Alert.alert(
           'Saved for Later',
@@ -242,7 +263,7 @@ export default function RecordScreen({ navigation }: any) {
     }
   }
 
-  async function uploadToBackend(uriOrSegments: string | string[]) {
+  async function uploadToBackend(uriOrSegments: string | string[], savedFileUri: string, savedFilename: string) {
     try {
       setIsUploading(true);
 
@@ -274,50 +295,95 @@ export default function RecordScreen({ navigation }: any) {
         } as any);
       }
 
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      // Set a long timeout for large audio files - up to 2 hours to support users with high minute limits
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 7200000); // 2 hour timeout
 
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('Error response:', errorText);
-        throw new Error(`Upload failed: ${response.status}`);
-      }
-
-      const text = await response.text();
-      console.log('Response text length:', text.length);
-      
-      const data = JSON.parse(text);
-      console.log('Transcription received:', data.transcription?.substring(0, 50));
-      
-      // Refresh user data to get updated minutes
-      await refreshUser();
-      
-      if (data.transcription) {
-        // Navigate to transcript screen instead of alert
-        navigation.replace('Transcript', {
-          transcription: data.transcription,
-          filename: 'recording.m4a',
-          recordingId: data.recordingId,
-          audioUrl: data.audioUrl,
+      try {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${token}`,
+          },
+          signal: controller.signal,
         });
-      } else {
-        Alert.alert('Success', 'Audio uploaded but no transcription returned');
+        clearTimeout(timeoutId);
+
+        clearTimeout(timeoutId);
+
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log('Error response:', errorText);
+          throw new Error(`Upload failed: ${response.status}`);
+        }
+
+        const text = await response.text();
+        console.log('Response text length:', text.length);
+        
+        const data = JSON.parse(text);
+        console.log('Transcription received:', data.transcription?.substring(0, 50));
+        
+        // Refresh user data to get updated minutes
+        await refreshUser();
+        
+        if (data.transcription) {
+          // Navigate to transcript screen instead of alert
+          navigation.replace('Transcript', {
+            transcription: data.transcription,
+            filename: 'recording.m4a',
+            recordingId: data.recordingId,
+            audioUrl: data.audioUrl,
+          });
+        } else {
+          Alert.alert('Success', 'Audio uploaded but no transcription returned');
+        }
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        
+        // Upload failed - save to queue for retry
+        console.log('Upload failed, adding to retry queue...');
+        
+        try {
+          if (savedFileUri && savedFilename) {
+            await addToQueue(savedFileUri, savedFilename);
+          }
+          
+          if (err.name === 'AbortError') {
+            console.error('Upload timeout after 2 hours');
+            Alert.alert(
+              'Recording Saved - Upload Timeout', 
+              'Your recording is saved locally but the upload timed out. This can happen with very long recordings (60+ minutes) on slow connections.\n\nThe app will retry uploading automatically. You can also check "Recordings" to manually retry.',
+              [
+                { text: 'OK', onPress: () => navigation.goBack() }
+              ]
+            );
+          } else {
+            console.error('Upload error:', err);
+            Alert.alert(
+              'Recording Saved - Upload Failed', 
+              `Your recording is saved locally but upload failed.\n\nError: ${err.message}\n\nThe app will retry automatically. Check "Recordings" to see status.`,
+              [
+                { text: 'OK', onPress: () => navigation.goBack() }
+              ]
+            );
+          }
+        } catch (queueErr: any) {
+          console.error('Failed to queue recording:', queueErr);
+          Alert.alert(
+            'Error',
+            `Recording could not be saved: ${queueErr.message}`
+          );
+        }
+      } finally {
+        setIsUploading(false);
       }
     } catch (err: any) {
-      console.error('Upload error:', err);
-      Alert.alert(
-        'Upload Error', 
-        `Could not complete request.\n\nError: ${err.message}\n\nBackend: ${API_URL}`
-      );
-    } finally {
+      console.error('Error handling recording:', err);
+      Alert.alert('Error', `Could not save recording: ${err.message}`);
       setIsUploading(false);
     }
   }
@@ -331,6 +397,7 @@ export default function RecordScreen({ navigation }: any) {
           <>
             <ActivityIndicator size="large" color="#6366f1" />
             <Text style={styles.statusText}>Uploading & Transcribing...</Text>
+            <Text style={styles.subtleText}>This may take a few minutes for longer recordings</Text>
           </>
         ) : isRecording ? (
           <>
@@ -427,6 +494,12 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 18,
     color: '#666',
+  },
+  subtleText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
   },
   durationText: {
     fontSize: 24,

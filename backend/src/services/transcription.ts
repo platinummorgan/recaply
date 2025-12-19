@@ -32,7 +32,7 @@ export async function transcribeAudio(
           ...formData.getHeaders(),
           Authorization: `Bearer ${OPENAI_API_KEY}`,
         },
-        timeout: 300000, // 5 minute timeout for long meetings
+        timeout: 1800000, // 30 minute timeout to support long recordings (up to user's minute limit)
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
       }
