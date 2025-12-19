@@ -32,7 +32,7 @@ async function getAudioDuration(audioBuffer: Buffer): Promise<number> {
   try {
     await writeFile(tempFile, audioBuffer);
     
-    return new Promise<number>((resolve, reject) => {
+    const duration = await new Promise<number>((resolve, reject) => {
       ffmpeg.ffprobe(tempFile, (err, metadata) => {
         if (err) {
           reject(err);
@@ -41,12 +41,23 @@ async function getAudioDuration(audioBuffer: Buffer): Promise<number> {
         }
       });
     });
-  } finally {
+    
+    // Clean up after getting duration
     try {
       if (fs.existsSync(tempFile)) await unlink(tempFile);
     } catch (e) {
       console.error('Error cleaning up probe file:', e);
     }
+    
+    return duration;
+  } catch (error) {
+    // Clean up on error too
+    try {
+      if (fs.existsSync(tempFile)) await unlink(tempFile);
+    } catch (e) {
+      console.error('Error cleaning up probe file after error:', e);
+    }
+    throw error;
   }
 }
 
