@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { getPendingCount, getUploadQueue } from '../services/storage';
+import { processQueue } from '../services/uploadQueue';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = 'https://web-production-abd11.up.railway.app';
@@ -8,21 +9,48 @@ const API_URL = 'https://web-production-abd11.up.railway.app';
 export default function HomeScreen({ navigation }: any) {
   const { user, token } = useAuth();
   const [recordings, setRecordings] = useState<any[]>([]);
+  const [queuedRecordings, setQueuedRecordings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     fetchRecordings();
+    loadQueuedRecordings();
     loadPendingCount();
     
     // Refresh pending count every 5 seconds
-    const interval = setInterval(loadPendingCount, 5000);
+    const interval = setInterval(() => {
+      loadPendingCount();
+      loadQueuedRecordings();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
   async function loadPendingCount() {
     const count = await getPendingCount();
     setPendingCount(count);
+  }
+
+  async function loadQueuedRecordings() {
+    const queue = await getUploadQueue();
+    setQueuedRecordings(queue.filter(item => item.status !== 'completed'));
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    try {
+      // Process upload queue first
+      console.log('Processing upload queue...');
+      await processQueue();
+      // Reload queue and recordings
+      await loadQueuedRecordings();
+      await fetchRecordings();
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function fetchRecordings() {
@@ -36,6 +64,7 @@ export default function HomeScreen({ navigation }: any) {
       const data = await response.json();
       setRecordings(data.recordings || []);
       await loadPendingCount(); // Refresh pending count too
+      await loadQueuedRecordings(); // Refresh queue too
     } catch (error) {
       console.error('Error fetching recordings:', error);
     } finally {
@@ -49,7 +78,17 @@ export default function HomeScreen({ navigation }: any) {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#6366f1']}
+          tintColor="#6366f1"
+        />
+      }
+    >
       <Text style={styles.title}>🎙️ Recaply</Text>
       <Text style={styles.subtitle}>AI Meeting Assistant</Text>
       
@@ -90,22 +129,53 @@ export default function HomeScreen({ navigation }: any) {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Recordings</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            {pendingCount > 0 && (
+            {queuedRecordings.length > 0 && (
               <View style={styles.pendingBadge}>
-                <Text style={styles.pendingText}>⏱️ {pendingCount} pending</Text>
+                <Text style={styles.pendingText}>⏱️ {queuedRecordings.length} pending</Text>
               </View>
             )}
-            <TouchableOpacity onPress={fetchRecordings}>
-              <Text style={styles.refreshText}>↻ Refresh</Text>
+            <TouchableOpacity onPress={onRefresh} disabled={refreshing}>
+              <Text style={styles.refreshText}>{refreshing ? '⟳' : '↻'} Refresh</Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Queued/Pending Recordings */}
+        {queuedRecordings.map((item) => (
+          <View
+            key={item.id}
+            style={[styles.recordingCard, styles.pendingCard]}
+          >
+            <View style={styles.pendingHeader}>
+              <Text style={styles.recordingTitle}>{item.filename}</Text>
+              <View style={[
+                styles.statusBadge,
+                item.status === 'uploading' && styles.uploadingBadge,
+                item.status === 'failed' && styles.failedBadge,
+              ]}>
+                <Text style={styles.statusText}>
+                  {item.status === 'uploading' ? '⬆️ Uploading...' :
+                   item.status === 'failed' ? '❌ Failed' :
+                   '⏱️ Pending'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.recordingDate}>
+              {new Date(item.timestamp).toLocaleDateString()} {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+            <Text style={styles.pendingNote}>
+              {item.status === 'failed' ? 'Tap refresh to retry' : 'Will upload automatically'}
+            </Text>
+          </View>
+        ))}
+
+        {/* Uploaded Recordings */}
 
         {loading ? (
           <View style={styles.emptyState}>
             <ActivityIndicator size="large" color="#6366f1" />
           </View>
-        ) : recordings.length === 0 ? (
+        ) : recordings.length === 0 && queuedRecordings.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No recordings yet</Text>
             <Text style={styles.emptySubtext}>Tap "New Recording" to get started</Text>
@@ -336,5 +406,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ea580c',
     fontWeight: '500',
+  },
+  pendingCard: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fcd34d',
+    borderWidth: 1,
+  },
+  pendingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: '#f59e0b',
+  },
+  uploadingBadge: {
+    backgroundColor: '#3b82f6',
+  },
+  failedBadge: {
+    backgroundColor: '#ef4444',
+  },
+  statusText: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  pendingNote: {
+    fontSize: 12,
+    color: '#92400e',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 });
