@@ -4,6 +4,7 @@ import { Readable } from 'stream';
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { promisify } from 'util';
 
 const writeFile = promisify(fs.writeFile);
@@ -23,7 +24,7 @@ interface TranscriptionResult {
  * Get audio duration using ffprobe
  */
 async function getAudioDuration(audioBuffer: Buffer): Promise<number> {
-  const tempDir = path.join(process.cwd(), 'temp_audio');
+  const tempDir = path.join(os.tmpdir(), 'recaply_audio');
   await mkdir(tempDir, { recursive: true });
   
   const tempFile = path.join(tempDir, `probe_${Date.now()}.m4a`);
@@ -56,7 +57,7 @@ async function splitAudioIntoChunks(
   audioBuffer: Buffer,
   chunkDurationSeconds: number
 ): Promise<Buffer[]> {
-  const tempDir = path.join(process.cwd(), 'temp_audio');
+  const tempDir = path.join(os.tmpdir(), 'recaply_audio');
   await mkdir(tempDir, { recursive: true });
   
   const timestamp = Date.now();
