@@ -1,11 +1,4 @@
-Version 1.1.1 - Critical Fixes
-
-What's Fixed:
-• Fixed failed upload retry system - recordings now properly retry when upload fails
-• Fixed backend transcription for recordings over 20 minutes - chunking now works correctly
-• Added visibility for pending/failed uploads on home screen with status badges
-• Pull-to-refresh now properly retries failed uploads
-• Fixed authentication issues with upload queue
-• Improved error handling and reliability
-
-All recordings are saved locally first to prevent data loss, then uploaded automatically when connection is available.
+Bug fixes and improvements:
+• Fixed upload reliability for long recordings
+• Improved error handling and retry logic
+• Enhanced recording stability
