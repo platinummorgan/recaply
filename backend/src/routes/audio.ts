@@ -40,7 +40,10 @@ router.post('/upload', authenticate, upload.single('audio'), async (req: AuthReq
     // Transcribe and get actual duration
     const { text: transcription, durationSeconds } = await transcribeAudio(audioBuffer, filename);
     const actualMinutes = Math.ceil(durationSeconds / 60);
-    console.log(`Actual duration: ${actualMinutes} minutes (${durationSeconds} seconds)`);
+    console.log(`Transcription duration: ${actualMinutes} minutes (${durationSeconds} seconds)`);
+    
+    // Important: Use transcription duration for billing (this is the actual audio duration from ffprobe)
+    // Not the sum of chunk durations from Whisper responses
 
     // Upload audio file to Supabase Storage
     const audioUrl = await uploadAudioFile(audioBuffer, filename, userId);

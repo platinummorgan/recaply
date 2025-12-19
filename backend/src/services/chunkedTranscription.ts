@@ -216,13 +216,13 @@ export async function transcribeAudioWithChunking(
     
     // Combine all transcriptions
     const combinedText = results.map(r => r.text).join(' ');
-    const totalDuration = results.reduce((sum, r) => sum + r.durationSeconds, 0);
     
-    console.log(`Transcription complete. Total duration: ${totalDuration} seconds`);
+    console.log(`Transcription complete. Actual audio duration: ${durationSeconds} seconds`);
     
+    // Return the actual audio duration from ffprobe, not the sum of Whisper chunk durations
     return {
       text: combinedText,
-      durationSeconds: totalDuration
+      durationSeconds: durationSeconds
     };
   } catch (error: any) {
     console.error('Chunked transcription error:', error.message);
