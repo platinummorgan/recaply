@@ -1,0 +1,18 @@
+# Apple App Store Release Notes
+
+## v1.1.0 - Recording Reliability Update
+
+🎙️ Major improvements to recording reliability:
+
+• No more lost recordings - all saved locally first
+• Support for long recordings up to 60+ minutes
+• Automatic retry for failed uploads
+• Better progress feedback during uploads
+• Smart warnings for very long recordings
+
+Bug fixes:
+• Fixed recordings timing out on 5+ minutes
+• Fixed recordings lost on network failures
+• Fixed unclear error messages
+
+Your recordings are now always protected, even if upload fails!

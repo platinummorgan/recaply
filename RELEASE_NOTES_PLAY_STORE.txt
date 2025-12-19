@@ -1,0 +1,19 @@
+🎙️ Recording Reliability Update
+
+FIXED:
+• Recordings no longer lost on network issues or timeouts
+• Support for long recordings up to 60+ minutes
+• Extended processing timeouts for better reliability
+
+NEW:
+• All recordings saved locally before upload attempts
+• Automatic retry queue for failed uploads
+• Clear progress messages during long uploads
+• 20-minute warning for very long recordings
+
+IMPROVED:
+• Better error messages with actionable guidance
+• Smarter timeout handling
+• Enhanced data protection - your recordings are always safe
+
+Record confidently - no more lost recordings!

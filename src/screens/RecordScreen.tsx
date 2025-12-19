@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Audio } from 'expo-av';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import * as Notifications from 'expo-notifications';
 import { Paths, File } from 'expo-file-system';
 import { addToQueue } from '../services/storage';
 import { checkUploadStatus, processQueue } from '../services/uploadQueue';
@@ -26,15 +28,40 @@ export default function RecordScreen({ navigation }: any) {
   const [recordingStartTime, setRecordingStartTime] = useState<number>(0);
   const [totalDuration, setTotalDuration] = useState<number>(0);
   const [currentDuration, setCurrentDuration] = useState<number>(0);
+  const [notificationId, setNotificationId] = useState<string | null>(null);
 
-  // Timer to update duration display
+  // Set up notification handler
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+
+    // Request notification permissions
+    (async () => {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('Notification permissions not granted');
+      }
+    })();
+  }, []);
+
+  // Timer to update duration display and notification
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRecording && !isPaused) {
-      interval = setInterval(() => {
+      interval = setInterval(async () => {
         const elapsed = (Date.now() - recordingStartTime) / 1000;
         const newDuration = totalDuration + elapsed;
         setCurrentDuration(newDuration);
+        
+        // Update notification with current duration
+        if (notificationId) {
+          await updateRecordingNotification(notificationId, newDuration);
+        }
         
         // Warn at 20 minutes about potential upload delays for very long recordings
         const totalMinutes = Math.floor(newDuration / 60);
@@ -45,12 +72,52 @@ export default function RecordScreen({ navigation }: any) {
             [{ text: 'OK' }]
           );
         }
-      }, 100);
+      }, 1000); // Update every second for notification
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRecording, isPaused, recordingStartTime, totalDuration]);
+  }, [isRecording, isPaused, recordingStartTime, totalDuration, notificationId]);
+
+  async function showRecordingNotification(): Promise<string> {
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🎙️ Recording in Progress',
+        body: 'Duration: 0:00',
+        sound: false,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        sticky: true,
+        data: { type: 'recording' },
+      },
+      trigger: null, // Show immediately
+    });
+    return notificationId;
+  }
+
+  async function updateRecordingNotification(id: string, durationSeconds: number) {
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = Math.floor(durationSeconds % 60);
+    const timeString = `${minutes}:${String(seconds).padStart(2, '0')}`;
+    
+    await Notifications.scheduleNotificationAsync({
+      identifier: id,
+      content: {
+        title: '🎙️ Recording in Progress',
+        body: `Duration: ${timeString}`,
+        sound: false,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        sticky: true,
+        data: { type: 'recording' },
+      },
+      trigger: null,
+    });
+  }
+
+  async function dismissRecordingNotification(id: string | null) {
+    if (id) {
+      await Notifications.dismissNotificationAsync(id);
+    }
+  }
 
   async function checkMinutesAvailable(): Promise<boolean> {
     if (!user) return false;
@@ -109,6 +176,8 @@ export default function RecordScreen({ navigation }: any) {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
       });
 
       const { recording } = await Audio.Recording.createAsync(
@@ -118,6 +187,13 @@ export default function RecordScreen({ navigation }: any) {
       setIsRecording(true);
       setIsPaused(false);
       setRecordingStartTime(Date.now());
+      
+      // Keep screen awake during recording (Android)
+      await activateKeepAwakeAsync();
+      
+      // Show lock screen notification
+      const id = await showRecordingNotification();
+      setNotificationId(id);
     } catch (err) {
       console.error('Failed to start recording', err);
       Alert.alert('Error', 'Could not start recording');
@@ -196,9 +272,19 @@ export default function RecordScreen({ navigation }: any) {
       setRecordingSegments([]);
       setTotalDuration(0);
       setCurrentDuration(0);
+      
+      // Allow screen to sleep again
+      deactivateKeepAwake();
+      
+      // Dismiss lock screen notification
+      await dismissRecordingNotification(notificationId);
+      setNotificationId(null);
     } catch (err) {
       console.error('Failed to stop recording', err);
       Alert.alert('Error', 'Could not stop recording');
+      deactivateKeepAwake();
+      await dismissRecordingNotification(notificationId);
+      setNotificationId(null);
     }
   }
 

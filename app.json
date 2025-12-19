@@ -24,7 +24,10 @@
       "permissions": [
         "RECORD_AUDIO",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "POST_NOTIFICATIONS",
+        "FOREGROUND_SERVICE",
+        "WAKE_LOCK"
       ],
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.recaply.app"
     },
@@ -44,7 +47,10 @@
     ],
     "ios": {
       "bundleIdentifier": "com.recaply.app",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     }
   }
 }

@@ -27,6 +27,8 @@
     "expo-dev-client": "~6.0.20",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.21",
+    "expo-keep-awake": "~15.0.8",
+    "expo-notifications": "~0.32.15",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.12",
