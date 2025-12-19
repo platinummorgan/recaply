@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -42,6 +43,9 @@ app.use('/api/', limiter);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Serve static docs (privacy policy, data deletion)
+app.use('/docs', express.static(path.join(__dirname, '../docs')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
