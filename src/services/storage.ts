@@ -9,7 +9,7 @@ export interface QueuedUpload {
   filename: string;
   timestamp: number;
   status: 'pending' | 'uploading' | 'completed' | 'failed';
-  token: string;
+  token?: string; // Optional for backward compatibility
 }
 
 export interface AppSettings {

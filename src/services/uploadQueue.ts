@@ -93,7 +93,7 @@ async function uploadRecording(item: QueuedUpload): Promise<void> {
 /**
  * Process the upload queue
  */
-export async function processQueue(): Promise<void> {
+export async function processQueue(fallbackToken?: string): Promise<void> {
   console.log('Processing upload queue...');
 
   // Check network status
@@ -114,7 +114,18 @@ export async function processQueue(): Promise<void> {
   // Upload each item
   for (const item of pending) {
     try {
-      await uploadRecording(item);
+      // Use item's token if available, otherwise use fallback token
+      const itemWithToken = {
+        ...item,
+        token: item.token || fallbackToken || '',
+      };
+      
+      if (!itemWithToken.token) {
+        console.error('No token available for upload:', item.id);
+        continue;
+      }
+      
+      await uploadRecording(itemWithToken);
     } catch (error) {
       console.error('Failed to upload item:', item.id, error);
       // Continue with next item even if this one fails

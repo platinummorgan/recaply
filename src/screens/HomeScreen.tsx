@@ -40,9 +40,9 @@ export default function HomeScreen({ navigation }: any) {
   async function onRefresh() {
     setRefreshing(true);
     try {
-      // Process upload queue first
+      // Process upload queue first (pass token for backward compatibility with old queue items)
       console.log('Processing upload queue...');
-      await processQueue();
+      await processQueue(token);
       // Reload queue and recordings
       await loadQueuedRecordings();
       await fetchRecordings();
