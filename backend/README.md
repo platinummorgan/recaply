@@ -100,6 +100,9 @@ npm start
 **GET** `/api/user/usage` (requires auth)
 - Returns user's usage stats
 
+**DELETE** `/api/user/account` (requires auth)
+- Permanently deletes user account and associated data
+
 ### Subscription
 
 **POST** `/api/subscription/create-checkout` (requires auth)
@@ -193,10 +196,30 @@ Required:
 
 ## Monitoring
 
-TODO: Add monitoring service:
-- Sentry for error tracking
-- LogRocket for session replay
-- DataDog for performance
+Built-in backend observability:
+- Request IDs on every response (`x-request-id` header)
+- Structured JSON logs for request lifecycle and errors
+- Health endpoint: `GET /health`
+- Metrics endpoint: `GET /metrics` (supports `?windowDays=1|7|30`)
+- Durable growth rollups (paywall + translation) via `growth_event_rollups` when enabled
+  - Includes persisted breakdown dimensions (source/language/variant/tier/outcome) in `growthRollups`
+  - Continuity maintenance endpoint: `POST /metrics/growth-rollups/maintenance`
+    - protected by `x-metrics-key` when `METRICS_API_KEY` is configured
+    - supports body/query options:
+      - `maxBackfillDays` (default `365`, max `3650`)
+      - `dryRun` (`true|false`, default `false`)
+      - `includeCompaction` (`true|false`, default `true`)
+  - Maintenance history endpoint: `GET /metrics/growth-rollups/maintenance-runs?limit=12`
+    - returns recent run history and operator diagnostics counters
+    - protected by `x-metrics-key` when `METRICS_API_KEY` is configured
+
+Optional observability env vars:
+- `LOG_LEVEL` - `debug|info|warn|error` (default: `info`)
+- `METRICS_API_KEY` - if set, `/metrics` requires header `x-metrics-key`
+- `ENABLE_GROWTH_ROLLUP_PERSISTENCE` - `true|false` toggle for DB-backed growth rollups
+- `ALERT_WEBHOOK_URL` - if set, critical backend errors trigger webhook notifications
+- `ALERT_MIN_LEVEL` - `warn|error` (default: `error`)
+- `ALERT_COOLDOWN_MS` - minimum interval between duplicate alerts (default: `60000`)
 
 ## License
 

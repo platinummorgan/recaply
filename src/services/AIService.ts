@@ -1,16 +1,5 @@
-import axios from 'axios';
-import {WHISPER_API_KEY, WHISPER_API_URL} from '@env';
 import {generateMeetingSummary, SummaryResponse} from './LLMService';
-
-// Whisper API configuration
-const WHISPER_URL = WHISPER_API_URL || 'https://api.openai.com/v1/audio/transcriptions';
-const WHISPER_KEY = WHISPER_API_KEY || '';
-
-interface SummaryData {
-  keyPoints: string[];
-  decisions: string[];
-  actionItems: string[];
-}
+import { PLAN_LIMITS } from '../config/billing';
 
 /**
  * Transcribe audio file using Whisper or similar ASR service
@@ -79,7 +68,7 @@ export const generateSummary = async (transcript: string): Promise<SummaryRespon
  */
 export const checkCreditBalance = async (): Promise<number> => {
   // TODO: Implement credit system
-  return 120; // Mock: 120 minutes remaining
+  return PLAN_LIMITS.LITE_MINUTES; // Mock: match Lite plan limit
 };
 
 /**

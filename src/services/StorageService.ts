@@ -19,7 +19,6 @@ export const saveRecording = async (
 ): Promise<Recording> => {
   try {
     const recordings = await getRecordings();
-    const timestamp = new Date().toISOString();
     const recording: Recording = {
       id: Date.now().toString(),
       name: customName || `Meeting ${new Date().toLocaleDateString()}`,

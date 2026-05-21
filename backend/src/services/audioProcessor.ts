@@ -2,6 +2,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';
 import { promisify } from 'util';
+import { logger, serializeError } from './logger';
 
 const writeFile = promisify(fs.writeFile);
 const unlink = promisify(fs.unlink);
@@ -77,6 +78,11 @@ export async function combineAudioSegments(
 
     return combinedBuffer;
   } catch (error) {
+    logger.error('audio_segments_combine_failed', {
+      segmentCount: segments.length,
+      outputFormat,
+      ...serializeError(error),
+    });
     // Clean up on error
     try {
       for (const inputFile of inputFiles) {
@@ -84,7 +90,10 @@ export async function combineAudioSegments(
       }
       if (fs.existsSync(outputFile)) await unlink(outputFile);
     } catch (cleanupError) {
-      console.error('Error during cleanup:', cleanupError);
+      logger.warn('audio_segments_cleanup_failed', {
+        tempDir,
+        ...serializeError(cleanupError),
+      });
     }
     throw error;
   }

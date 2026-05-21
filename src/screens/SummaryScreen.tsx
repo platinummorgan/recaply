@@ -10,19 +10,14 @@ import {
 } from 'react-native';
 import {useNavigation, useRoute, RouteProp} from '@react-navigation/native';
 import {StackNavigationProp} from '@react-navigation/stack';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 import {RootStackParamList} from '../navigation/AppNavigator';
 import {getRecordingById, updateSummary} from '../services/StorageService';
 import {generateSummary} from '../services/AIService';
+import type { SummaryResponse } from '../types/llm';
 
 type SummaryScreenProp = StackNavigationProp<RootStackParamList, 'Summary'>;
 type SummaryScreenRoute = RouteProp<RootStackParamList, 'Summary'>;
-
-interface SummaryData {
-  keyPoints: string[];
-  decisions: string[];
-  actionItems: string[];
-}
 
 const SummaryScreen = () => {
   const navigation = useNavigation<SummaryScreenProp>();
@@ -30,7 +25,7 @@ const SummaryScreen = () => {
   const {recordingId} = route.params;
 
   const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [recording, setRecording] = useState<any>(null);
 
   useEffect(() => {
@@ -42,7 +37,20 @@ const SummaryScreen = () => {
     if (rec) {
       setRecording(rec);
       if (rec.summary) {
-        setSummary(JSON.parse(rec.summary));
+        const parsed = JSON.parse(rec.summary);
+        const normalizedSummary: SummaryResponse = {
+          summary: parsed.summary || '',
+          keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+          decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
+          actionItems: Array.isArray(parsed.actionItems)
+            ? parsed.actionItems.map((item: any) =>
+                typeof item === 'string' ? { task: item } : item
+              )
+            : [],
+          participants: Array.isArray(parsed.participants) ? parsed.participants : [],
+          sentiment: parsed.sentiment || 'neutral',
+        };
+        setSummary(normalizedSummary);
       } else {
         // Auto-generate summary if not exists
         generateMeetingSummary();
@@ -80,7 +88,7 @@ const SummaryScreen = () => {
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Icon name={icon} size={24} color={color} />
+          <Icon name={icon as keyof typeof Icon.glyphMap} size={24} color={color} />
           <Text style={[styles.sectionTitle, {color}]}>{title}</Text>
         </View>
         {items.map((item, index) => (
@@ -110,7 +118,12 @@ const SummaryScreen = () => {
         <ScrollView style={styles.summaryContainer}>
           {renderSection('Key Points', 'lightbulb', summary.keyPoints, '#f59e0b')}
           {renderSection('Decisions Made', 'check-circle', summary.decisions, '#10b981')}
-          {renderSection('Action Items', 'assignment', summary.actionItems, '#6366f1')}
+          {renderSection(
+            'Action Items',
+            'assignment',
+            summary.actionItems.map((item) => item.task),
+            '#6366f1'
+          )}
         </ScrollView>
       ) : (
         <View style={styles.emptyContainer}>

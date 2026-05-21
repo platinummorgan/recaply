@@ -1,0 +1,44 @@
+name: Root Typecheck
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * 1'
+  push:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.frontend.json'
+      - 'src/examples/**'
+      - 'scripts/pre_release_check.ps1'
+      - '.github/workflows/root-typecheck.yml'
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.frontend.json'
+      - 'src/examples/**'
+      - 'scripts/pre_release_check.ps1'
+      - '.github/workflows/root-typecheck.yml'
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Root typecheck
+        run: npm run typecheck:root

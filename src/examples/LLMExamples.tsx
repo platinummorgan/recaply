@@ -3,6 +3,8 @@
  * This file demonstrates how to use the LLM service in your application
  */
 
+import React from 'react';
+
 import {
   generateMeetingSummary,
   generateQuickSummary,
@@ -13,7 +15,7 @@ import {
 } from '../services/LLMService';
 
 import {getCurrentProvider} from '../services/LLMConfigService';
-import type {LLMProvider} from '../types/llm';
+import type {LLMProvider, SummaryResponse} from '../types/llm';
 
 // Example 1: Generate a full meeting summary
 export async function exampleFullSummary() {
@@ -200,8 +202,8 @@ export async function exampleWithRetry(transcript: string, maxRetries = 3) {
 // Example 9: Using with React Native component
 export function useLLMSummary() {
   const [loading, setLoading] = React.useState(false);
-  const [summary, setSummary] = React.useState(null);
-  const [error, setError] = React.useState(null);
+  const [summary, setSummary] = React.useState<SummaryResponse | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
   const generateSummary = async (transcript: string) => {
     setLoading(true);
@@ -210,8 +212,8 @@ export function useLLMSummary() {
     try {
       const result = await generateMeetingSummary(transcript);
       setSummary(result);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }

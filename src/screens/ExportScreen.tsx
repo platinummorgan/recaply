@@ -1,9 +1,9 @@
 import React, {useState, useEffect} from 'react';
 import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert} from 'react-native';
 import {useRoute, RouteProp} from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import {RootStackParamList} from '../navigation/AppNavigator';
 import {getRecordingById} from '../services/StorageService';
 
@@ -48,8 +48,11 @@ const ExportScreen = () => {
           content += `- ${decision}\n`;
         });
         content += `\n### Action Items\n\n`;
-        summary.actionItems?.forEach((item: string) => {
-          content += `- [ ] ${item}\n`;
+        summary.actionItems?.forEach((item: any) => {
+          const task = typeof item === 'string' ? item : item?.task;
+          if (task) {
+            content += `- [ ] ${task}\n`;
+          }
         });
       }
 
@@ -72,8 +75,11 @@ const ExportScreen = () => {
           content += `${idx + 1}. ${decision}\n`;
         });
         content += `\nAction Items:\n`;
-        summary.actionItems?.forEach((item: string, idx: number) => {
-          content += `${idx + 1}. ${item}\n`;
+        summary.actionItems?.forEach((item: any, idx: number) => {
+          const task = typeof item === 'string' ? item : item?.task;
+          if (task) {
+            content += `${idx + 1}. ${task}\n`;
+          }
         });
       }
 
@@ -81,21 +87,22 @@ const ExportScreen = () => {
     }
   };
 
-  const shareContent = async (platform?: 'email' | 'general') => {
+  const shareContent = async () => {
     const content = formatContent();
     const fileName = `${recording?.name || 'meeting-notes'}.txt`;
-    const fileUri = FileSystem.documentDirectory + fileName;
+    const file = new File(Paths.document, fileName);
 
     try {
       // Write content to a file
-      await FileSystem.writeAsStringAsync(fileUri, content, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const writer = file.writableStream().getWriter();
+      const encoder = new TextEncoder();
+      await writer.write(encoder.encode(content));
+      await writer.close();
 
       // Check if sharing is available
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(fileUri, {
+        await Sharing.shareAsync(file.uri, {
           mimeType: 'text/plain',
           dialogTitle: `Meeting Notes: ${recording?.name}`,
           UTI: 'public.plain-text',
@@ -109,7 +116,7 @@ const ExportScreen = () => {
     }
   };
 
-  const shareToGmail = () => shareContent('email');
+  const shareToGmail = () => shareContent();
   const shareToNotion = () => {
     Alert.alert(
       'Notion Integration',
@@ -184,7 +191,7 @@ const ExportScreen = () => {
             <Text style={styles.shareButtonText}>Notion</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.shareButton} onPress={() => shareContent('general')}>
+          <TouchableOpacity style={styles.shareButton} onPress={shareContent}>
             <Icon name="share" size={32} color="#6366f1" />
             <Text style={styles.shareButtonText}>More</Text>
           </TouchableOpacity>

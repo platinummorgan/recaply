@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { createUser, getUserByEmail } from '../services/supabase';
+import { logger, serializeError } from '../services/logger';
 
 const router: Router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -16,12 +17,20 @@ router.post('/register', async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
+      logger.warn('auth_register_validation_failed', {
+        requestId: req.requestId,
+        hasEmail: Boolean(email),
+        hasPassword: Boolean(password),
+      });
       return res.status(400).json({ error: 'Email and password required' });
     }
 
     // Check if user exists
     const existingUser = await getUserByEmail(email);
     if (existingUser) {
+      logger.warn('auth_register_email_exists', {
+        requestId: req.requestId,
+      });
       return res.status(400).json({ error: 'Email already registered' });
     }
 
@@ -48,7 +57,10 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Registration error:', error);
+    logger.error('auth_register_failed', {
+      requestId: req.requestId,
+      ...serializeError(error),
+    });
     res.status(500).json({ error: 'Registration failed' });
   }
 });
@@ -62,18 +74,31 @@ router.post('/login', async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
+      logger.warn('auth_login_validation_failed', {
+        requestId: req.requestId,
+        hasEmail: Boolean(email),
+        hasPassword: Boolean(password),
+      });
       return res.status(400).json({ error: 'Email and password required' });
     }
 
     // Get user
     const user = await getUserByEmail(email);
     if (!user) {
+      logger.warn('auth_login_invalid_credentials', {
+        requestId: req.requestId,
+        reason: 'user_not_found',
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Check password
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
+      logger.warn('auth_login_invalid_credentials', {
+        requestId: req.requestId,
+        reason: 'password_mismatch',
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -95,7 +120,10 @@ router.post('/login', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Login error:', error);
+    logger.error('auth_login_failed', {
+      requestId: req.requestId,
+      ...serializeError(error),
+    });
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -108,29 +136,42 @@ router.post('/google', async (req: Request, res: Response) => {
   try {
     const { idToken } = req.body;
 
-    console.log('=== Google Sign-In Request ===');
-    console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
-    console.log('Token received:', idToken ? `Yes (length: ${idToken.length})` : 'No');
+    logger.info('auth_google_request_received', {
+      requestId: req.requestId,
+      hasIdToken: Boolean(idToken),
+      idTokenLength: idToken?.length || 0,
+      hasGoogleClientId: Boolean(process.env.GOOGLE_CLIENT_ID),
+    });
 
     if (!idToken) {
-      console.log('ERROR: No idToken provided');
+      logger.warn('auth_google_validation_failed', {
+        requestId: req.requestId,
+        reason: 'missing_id_token',
+      });
       return res.status(400).json({ error: 'Google ID token required' });
     }
 
     // Verify Google ID token
-    console.log('Attempting to verify token with Google...');
+    logger.info('auth_google_verify_started', {
+      requestId: req.requestId,
+    });
     const ticket = await googleClient.verifyIdToken({
       idToken,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
-    console.log('✓ Token verified successfully');
-    console.log('Email:', payload?.email);
-    console.log('Name:', payload?.name);
+    logger.info('auth_google_verify_succeeded', {
+      requestId: req.requestId,
+      hasEmail: Boolean(payload?.email),
+      hasName: Boolean(payload?.name),
+    });
     
     if (!payload || !payload.email) {
-      console.log('ERROR: No payload or email in token');
+      logger.warn('auth_google_validation_failed', {
+        requestId: req.requestId,
+        reason: 'missing_payload_or_email',
+      });
       return res.status(401).json({ error: 'Invalid Google token' });
     }
 
@@ -165,7 +206,10 @@ router.post('/google', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Google sign-in error:', error);
+    logger.error('auth_google_failed', {
+      requestId: req.requestId,
+      ...serializeError(error),
+    });
     res.status(500).json({ error: 'Google sign-in failed' });
   }
 });
@@ -178,12 +222,28 @@ router.post('/apple', async (req: Request, res: Response) => {
   try {
     const { identityToken, user: appleUser, email, fullName } = req.body;
 
-    console.log('=== Apple Sign-In Request ===');
-    console.log('Apple User ID:', appleUser);
-    console.log('Email:', email);
+    logger.info('auth_apple_request_received', {
+      requestId: req.requestId,
+      hasIdentityToken: Boolean(identityToken),
+      hasAppleUser: Boolean(appleUser),
+      hasEmail: Boolean(email),
+      hasFullName: Boolean(fullName),
+    });
 
     if (!identityToken) {
+      logger.warn('auth_apple_validation_failed', {
+        requestId: req.requestId,
+        reason: 'missing_identity_token',
+      });
       return res.status(400).json({ error: 'Apple identity token required' });
+    }
+
+    if (!email && !appleUser) {
+      logger.warn('auth_apple_validation_failed', {
+        requestId: req.requestId,
+        reason: 'missing_email_and_user',
+      });
+      return res.status(400).json({ error: 'Apple user identifier or email required' });
     }
 
     // Note: For production, you should verify the identityToken with Apple's servers
@@ -220,7 +280,10 @@ router.post('/apple', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Apple sign-in error:', error);
+    logger.error('auth_apple_failed', {
+      requestId: req.requestId,
+      ...serializeError(error),
+    });
     res.status(500).json({ error: 'Apple sign-in failed' });
   }
 });

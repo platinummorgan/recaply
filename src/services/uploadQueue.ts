@@ -7,8 +7,30 @@ import {
   getSettings,
   QueuedUpload,
 } from './storage';
+import { apiUrl } from '../config/api';
+import type { RecordingMetadata } from '../types/recording';
 
-const BACKEND_URL = 'https://web-production-abd11.up.railway.app';
+function appendMetadataFields(formData: FormData, metadata?: RecordingMetadata) {
+  if (!metadata) {
+    return;
+  }
+
+  if (metadata.meetingName) {
+    formData.append('meetingName', metadata.meetingName);
+  }
+  if (metadata.meetingLocation) {
+    formData.append('meetingLocation', metadata.meetingLocation);
+  }
+  if (metadata.meetingContext) {
+    formData.append('meetingContext', metadata.meetingContext);
+  }
+  if (metadata.meetingAt) {
+    formData.append('meetingAt', metadata.meetingAt);
+  }
+  if (Array.isArray(metadata.meetingParticipants) && metadata.meetingParticipants.length > 0) {
+    formData.append('meetingParticipants', JSON.stringify(metadata.meetingParticipants));
+  }
+}
 
 /**
  * Check if we should upload based on network type and settings
@@ -54,9 +76,10 @@ async function uploadRecording(item: QueuedUpload): Promise<void> {
       type: 'audio/m4a',
       name: item.filename,
     } as any);
+    appendMetadataFields(formData, item.metadata);
 
     // Upload to backend
-    const response = await fetch(`${BACKEND_URL}/api/audio/upload`, {
+    const response = await fetch(apiUrl('/audio/upload'), {
       method: 'POST',
       body: formData,
       headers: {

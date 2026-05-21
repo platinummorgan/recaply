@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { promisify } from 'util';
+import { logger, serializeError } from './logger';
 
 const writeFile = promisify(fs.writeFile);
 const unlink = promisify(fs.unlink);
@@ -45,8 +46,12 @@ async function getAudioDuration(audioBuffer: Buffer): Promise<number> {
     // Clean up after getting duration
     try {
       if (fs.existsSync(tempFile)) await unlink(tempFile);
-    } catch (e) {
-      console.error('Error cleaning up probe file:', e);
+    } catch (error) {
+      logger.warn('chunked_transcription_probe_cleanup_failed', {
+        phase: 'duration_probe_success_cleanup',
+        tempFile,
+        ...serializeError(error),
+      });
     }
     
     return duration;
@@ -54,8 +59,12 @@ async function getAudioDuration(audioBuffer: Buffer): Promise<number> {
     // Clean up on error too
     try {
       if (fs.existsSync(tempFile)) await unlink(tempFile);
-    } catch (e) {
-      console.error('Error cleaning up probe file after error:', e);
+    } catch (cleanupError) {
+      logger.warn('chunked_transcription_probe_cleanup_failed', {
+        phase: 'duration_probe_error_cleanup',
+        tempFile,
+        ...serializeError(cleanupError),
+      });
     }
     throw error;
   }
@@ -112,7 +121,10 @@ async function splitAudioIntoChunks(
     
     return chunks;
   } catch (error) {
-    console.error('Error splitting audio:', error);
+    logger.error('chunked_transcription_split_failed', {
+      chunkDurationSeconds,
+      ...serializeError(error),
+    });
     throw new Error('Failed to split audio into chunks');
   }
 }
@@ -157,7 +169,12 @@ async function transcribeChunk(
         durationSeconds: response.data.duration || 0
       };
     } catch (error: any) {
-      console.error(`Transcription attempt ${attempt + 1} failed for chunk ${chunkIndex}:`, error.message);
+      logger.warn('chunked_transcription_chunk_attempt_failed', {
+        chunkIndex,
+        attempt: attempt + 1,
+        maxAttempts: retries + 1,
+        ...serializeError(error),
+      });
       
       if (attempt === retries) {
         throw new Error(`Failed to transcribe chunk ${chunkIndex} after ${retries + 1} attempts`);
@@ -184,20 +201,35 @@ export async function transcribeAudioWithChunking(
     const durationSeconds = await getAudioDuration(audioBuffer);
     const durationMinutes = durationSeconds / 60;
     
-    console.log(`Audio duration: ${durationMinutes.toFixed(2)} minutes`);
+    logger.info('chunked_transcription_duration_measured', {
+      filename,
+      durationMinutes: Number(durationMinutes.toFixed(2)),
+      durationSeconds,
+    });
     
     // If under threshold, transcribe normally
     if (durationMinutes <= CHUNK_DURATION_MINUTES) {
-      console.log('Audio under chunk threshold, transcribing normally...');
+      logger.info('chunked_transcription_single_pass', {
+        filename,
+        thresholdMinutes: CHUNK_DURATION_MINUTES,
+      });
       return await transcribeChunk(audioBuffer, 0);
     }
     
     // Split into chunks
-    console.log(`Audio over ${CHUNK_DURATION_MINUTES} minutes, splitting into chunks...`);
+    logger.info('chunked_transcription_split_started', {
+      filename,
+      thresholdMinutes: CHUNK_DURATION_MINUTES,
+      durationMinutes: Number(durationMinutes.toFixed(2)),
+    });
     const chunkDurationSeconds = CHUNK_DURATION_MINUTES * 60;
     const chunks = await splitAudioIntoChunks(audioBuffer, chunkDurationSeconds);
     
-    console.log(`Split into ${chunks.length} chunks`);
+    logger.info('chunked_transcription_split_completed', {
+      filename,
+      chunkCount: chunks.length,
+      chunkDurationSeconds,
+    });
     
     // Transcribe all chunks in parallel (with concurrency limit)
     const CONCURRENCY_LIMIT = 3; // Process 3 chunks at a time
@@ -209,7 +241,12 @@ export async function transcribeAudioWithChunking(
         transcribeChunk(chunk, i + batchIndex)
       );
       
-      console.log(`Processing batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}/${Math.ceil(chunks.length / CONCURRENCY_LIMIT)}...`);
+      logger.info('chunked_transcription_batch_started', {
+        filename,
+        batchNumber: Math.floor(i / CONCURRENCY_LIMIT) + 1,
+        batchTotal: Math.ceil(chunks.length / CONCURRENCY_LIMIT),
+        batchSize: batch.length,
+      });
       const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
     }
@@ -217,7 +254,11 @@ export async function transcribeAudioWithChunking(
     // Combine all transcriptions
     const combinedText = results.map(r => r.text).join(' ');
     
-    console.log(`Transcription complete. Actual audio duration: ${durationSeconds} seconds`);
+    logger.info('chunked_transcription_completed', {
+      filename,
+      durationSeconds,
+      chunkCount: chunks.length,
+    });
     
     // Return the actual audio duration from ffprobe, not the sum of Whisper chunk durations
     return {
@@ -225,7 +266,10 @@ export async function transcribeAudioWithChunking(
       durationSeconds: durationSeconds
     };
   } catch (error: any) {
-    console.error('Chunked transcription error:', error.message);
+    logger.error('chunked_transcription_failed', {
+      filename,
+      ...serializeError(error),
+    });
     throw new Error(`Failed to transcribe audio: ${error.message}`);
   }
 }

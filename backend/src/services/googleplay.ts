@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger, serializeError } from './logger';
 
 /**
  * Google Play billing service
@@ -41,7 +42,10 @@ async function getAuthClient() {
 
     return await auth.getClient();
   } catch (error) {
-    console.error('Failed to initialize Google Play API:', error);
+    logger.error('googleplay_auth_init_failed', {
+      serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH || null,
+      ...serializeError(error),
+    });
     throw error;
   }
 }
@@ -67,19 +71,25 @@ export async function verifySubscriptionPurchase(
     const purchase = response.data;
 
     // paymentState: 0 = pending, 1 = received, 2 = free trial, 3 = deferred
-    // Check if active subscription
+    // Treat paid and free-trial subscriptions as active when not expired.
     const expiryTime = purchase.expiryTimeMillis ? parseInt(purchase.expiryTimeMillis) : 0;
     const now = Date.now();
-    const isValid = expiryTime > now && purchase.paymentState === 1;
+    const paymentState = purchase.paymentState;
+    const isPaidOrTrial = paymentState === 1 || paymentState === 2;
+    const isValid = expiryTime > now && isPaidOrTrial;
 
     return {
       valid: isValid,
-      purchaseState: purchase.paymentState || undefined,
+      purchaseState: paymentState || undefined,
       orderId: purchase.orderId || undefined,
       purchaseTime: purchase.startTimeMillis ? parseInt(purchase.startTimeMillis) : undefined,
     };
   } catch (error: any) {
-    console.error('Failed to verify subscription:', error);
+    logger.error('googleplay_subscription_verify_failed', {
+      packageName,
+      subscriptionId,
+      ...serializeError(error),
+    });
     return { valid: false };
   }
 }
@@ -116,7 +126,11 @@ export async function verifyProductPurchase(
       purchaseTime: purchase.purchaseTimeMillis ? parseInt(purchase.purchaseTimeMillis) : undefined,
     };
   } catch (error: any) {
-    console.error('Failed to verify product:', error);
+    logger.error('googleplay_product_verify_failed', {
+      packageName,
+      productId,
+      ...serializeError(error),
+    });
     return { valid: false };
   }
 }
@@ -148,7 +162,11 @@ export async function getSubscriptionStatus(
       expiryTime,
     };
   } catch (error: any) {
-    console.error('Failed to get subscription status:', error);
+    logger.error('googleplay_subscription_status_failed', {
+      packageName,
+      subscriptionId,
+      ...serializeError(error),
+    });
     return { active: false };
   }
 }

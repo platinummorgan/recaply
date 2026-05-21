@@ -7,9 +7,12 @@ import HomeScreen from './src/screens/HomeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import RecordScreen from './src/screens/RecordScreen';
 import TranscriptScreen from './src/screens/TranscriptScreen';
+import AskScreen from './src/screens/AskScreen';
+import HighlightsScreen from './src/screens/HighlightsScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import SubscriptionScreen from './src/screens/SubscriptionScreen';
+import PaywallInsightsScreen from './src/screens/PaywallInsightsScreen';
 import OnboardingScreen, { isOnboardingComplete } from './src/screens/OnboardingScreen';
 import { startQueueMonitoring } from './src/services/uploadQueue';
 
@@ -67,7 +70,7 @@ function AppNavigator() {
             <Stack.Screen 
               name="Home" 
               component={HomeScreen}
-              options={{ title: 'Recaply' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen 
               name="Record" 
@@ -79,6 +82,16 @@ function AppNavigator() {
               component={TranscriptScreen}
               options={{ title: 'Transcript' }}
             />
+            <Stack.Screen
+              name="Ask"
+              component={AskScreen}
+              options={{ title: 'Ask Recaply' }}
+            />
+            <Stack.Screen
+              name="Highlights"
+              component={HighlightsScreen}
+              options={{ title: 'Highlights' }}
+            />
             <Stack.Screen 
               name="Settings" 
               component={SettingsScreen}
@@ -88,6 +101,11 @@ function AppNavigator() {
               name="Subscription" 
               component={SubscriptionScreen}
               options={{ title: 'Subscription' }}
+            />
+            <Stack.Screen
+              name="PaywallInsights"
+              component={PaywallInsightsScreen}
+              options={{ title: 'Growth Insights' }}
             />
           </>
         ) : (

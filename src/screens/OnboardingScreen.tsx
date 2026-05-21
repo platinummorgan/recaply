@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,19 @@ import {
   TouchableOpacity,
   Dimensions,
   ScrollView,
+  Animated,
+  Easing,
 } from 'react-native';
-import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getOnboardingSlides, resolvePaywallVariant } from '../config/paywallMessaging';
+import { colors, radii, spacing, typography } from '../theme/tokens';
+import { useAuth } from '../context/AuthContext';
+import { trackActivationEvent } from '../services/activationAnalytics';
+import {
+  getDefaultTranslationLanguage,
+  setDefaultTranslationLanguage,
+  TRANSLATION_LANGUAGE_OPTIONS,
+} from '../services/translationPreferences';
 
 const { width } = Dimensions.get('window');
 
@@ -17,43 +27,64 @@ interface OnboardingScreenProps {
 }
 
 const ONBOARDING_COMPLETE_KEY = 'onboarding_complete';
-
-const slides = [
-  {
-    emoji: '🎙️',
-    title: 'Record Your Meetings',
-    description: 'Tap the record button to capture audio from meetings, lectures, or voice memos.',
-    color: '#10b981',
-  },
-  {
-    emoji: '✍️',
-    title: 'AI Transcription',
-    description: 'Our AI automatically transcribes your recordings with high accuracy using Whisper technology.',
-    color: '#3b82f6',
-  },
-  {
-    emoji: '📝',
-    title: 'Smart Summaries',
-    description: 'Get instant AI-generated summaries with key points and action items extracted.',
-    color: '#8b5cf6',
-  },
-  {
-    emoji: '🔍',
-    title: 'Search & Organize',
-    description: 'Easily find past recordings with search. All your transcripts are searchable and organized.',
-    color: '#f59e0b',
-  },
-  {
-    emoji: '⏱️',
-    title: '30 Free Minutes',
-    description: 'Start with 30 free minutes of transcription per month. Upgrade anytime for more.',
-    color: '#ef4444',
-  },
+const ONBOARDING_OUTCOME_POINTS = [
+  'Capture with context',
+  'Generate executive summaries',
+  'Share in any language',
 ];
 
 const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
+  const { token } = useAuth();
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [preferredLanguage, setPreferredLanguage] = useState('Spanish');
   const scrollViewRef = useRef<ScrollView>(null);
+  const slideMotion = useRef(new Animated.Value(0)).current;
+  const paywallVariant = useMemo(() => resolvePaywallVariant('onboarding').variant, []);
+  const slides = useMemo(() => getOnboardingSlides(paywallVariant), [paywallVariant]);
+  const activeSlide = slides[currentSlide];
+  const progressPercent = Math.round(((currentSlide + 1) / slides.length) * 100);
+  const remainingSteps = Math.max(slides.length - currentSlide - 1, 0);
+  const readinessSignal = remainingSteps === 0 ? 'Ready to launch' : `${remainingSteps} steps left`;
+  const slideMotionStyle = useMemo(
+    () => ({
+      opacity: slideMotion,
+      transform: [
+        {
+          translateY: slideMotion.interpolate({
+            inputRange: [0, 1],
+            outputRange: [18, 0],
+          }),
+        },
+      ],
+    }),
+    [slideMotion],
+  );
+
+  useEffect(() => {
+    slideMotion.setValue(0);
+    const animation = Animated.timing(slideMotion, {
+      toValue: 1,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => {
+      animation.stop();
+    };
+  }, [currentSlide, slideMotion]);
+
+  useEffect(() => {
+    void loadPreferredLanguage();
+  }, []);
+
+  useEffect(() => {
+    void trackActivationEvent(token, {
+      eventName: 'onboarding_viewed',
+      source: 'onboarding_screen',
+      step: 'landing',
+    });
+  }, [token]);
 
   const handleNext = () => {
     if (currentSlide < slides.length - 1) {
@@ -63,7 +94,18 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleSkip = async () => {
+  const completeOnboarding = async (mode: 'skip' | 'completed') => {
+    void trackActivationEvent(token, {
+      eventName: 'onboarding_completed',
+      source: 'onboarding_screen',
+      outcome: mode,
+      step: `slide_${currentSlide + 1}`,
+    });
+    try {
+      await setDefaultTranslationLanguage(preferredLanguage);
+    } catch {
+      // Keep onboarding completion resilient if preference persistence fails.
+    }
     await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
     if (navigation.canGoBack()) {
       navigation.goBack();
@@ -72,13 +114,17 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleSkip = async () => {
+    void trackActivationEvent(token, {
+      eventName: 'onboarding_skip_tapped',
+      source: 'onboarding_screen',
+      step: `slide_${currentSlide + 1}`,
+    });
+    await completeOnboarding('skip');
+  };
+
   const handleGetStarted = async () => {
-    await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.replace('Home');
-    }
+    await completeOnboarding('completed');
   };
 
   const handleScroll = (event: any) => {
@@ -86,18 +132,32 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
     setCurrentSlide(slideIndex);
   };
 
+  async function loadPreferredLanguage() {
+    const preferred = await getDefaultTranslationLanguage();
+    setPreferredLanguage(preferred);
+  }
+
   const isLastSlide = currentSlide === slides.length - 1;
 
   return (
     <View style={styles.container}>
-      {/* Skip Button */}
+      <View style={styles.bgOrbTop} />
+      <View style={styles.bgOrbBottom} />
+
       {!isLastSlide && (
         <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
       )}
 
-      {/* Slides */}
+      <View style={styles.progressHeader}>
+        <Text style={styles.progressLabel}>Onboarding {currentSlide + 1} / {slides.length}</Text>
+        <Text style={styles.progressLabel}>{progressPercent}%</Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+      </View>
+
       <ScrollView
         ref={scrollViewRef}
         horizontal
@@ -107,17 +167,25 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
         scrollEventThrottle={16}
       >
         {slides.map((slide, index) => (
-          <View key={index} style={[styles.slide, { backgroundColor: slide.color }]}>
-            <View style={styles.content}>
-              <Text style={styles.emoji}>{slide.emoji}</Text>
+          <View key={`${slide.phase}-${index}`} style={styles.slide}>
+            <Animated.View style={[styles.slideCard, currentSlide === index ? slideMotionStyle : undefined]}>
+              <Text style={styles.phase}>{slide.phase}</Text>
               <Text style={styles.title}>{slide.title}</Text>
               <Text style={styles.description}>{slide.description}</Text>
-            </View>
+
+              <View style={styles.metricRow}>
+                <View style={styles.metricPill}>
+                  <Text style={styles.metricLabel}>{slide.metric}</Text>
+                </View>
+                <View style={styles.tonePill}>
+                  <Text style={styles.toneLabel}>{slide.tone}</Text>
+                </View>
+              </View>
+            </Animated.View>
           </View>
         ))}
       </ScrollView>
 
-      {/* Pagination Dots */}
       <View style={styles.pagination}>
         {slides.map((_, index) => (
           <View
@@ -130,11 +198,46 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
         ))}
       </View>
 
-      {/* Bottom Button */}
       <View style={styles.footer}>
+        <View style={styles.outcomeRail}>
+          <Text style={styles.outcomeRailTitle}>What You Unlock</Text>
+          <View style={styles.outcomeRailRow}>
+            {ONBOARDING_OUTCOME_POINTS.map((point) => (
+              <View key={point} style={styles.outcomePill}>
+                <Text style={styles.outcomePillText}>{point}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={styles.outcomeRailMeta}>
+            {activeSlide?.metric || 'High-impact workflow'}  •  {readinessSignal}
+          </Text>
+        </View>
+        <View style={styles.languagePanel}>
+          <Text style={styles.languagePanelTitle}>Preferred Translation Language</Text>
+          <Text style={styles.languagePanelHint}>
+            Recaply will preselect this language when sharing multilingual recaps.
+          </Text>
+          <View style={styles.languageChipRow}>
+            {TRANSLATION_LANGUAGE_OPTIONS.map((language) => {
+              const selected = preferredLanguage === language;
+              return (
+                <TouchableOpacity
+                  key={language}
+                  style={[styles.languageChip, selected && styles.languageChipActive]}
+                  onPress={() => setPreferredLanguage(language)}
+                >
+                  <Text style={[styles.languageChipText, selected && styles.languageChipTextActive]}>
+                    {language}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+        <Text style={styles.footerHint}>{isLastSlide ? 'You are ready to capture with context.' : 'Swipe or tap Next to continue.'}</Text>
         {isLastSlide ? (
           <TouchableOpacity style={styles.button} onPress={handleGetStarted}>
-            <Text style={styles.buttonText}>Get Started 🚀</Text>
+            <Text style={styles.buttonText}>Get Started</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.button} onPress={handleNext}>
@@ -149,92 +252,270 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surfaceDark,
+  },
+  bgOrbTop: {
+    position: 'absolute',
+    top: -120,
+    right: -40,
+    width: 280,
+    height: 280,
+    borderRadius: 999,
+    backgroundColor: '#1b3e67',
+    opacity: 0.65,
+  },
+  bgOrbBottom: {
+    position: 'absolute',
+    bottom: -160,
+    left: -40,
+    width: 320,
+    height: 320,
+    borderRadius: 999,
+    backgroundColor: '#0b5fff',
+    opacity: 0.25,
   },
   skipButton: {
     position: 'absolute',
-    top: 50,
-    right: 20,
+    top: 52,
+    right: spacing.md,
     zIndex: 10,
-    padding: 10,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: '#1f3854',
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: '#335473',
   },
   skipText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: colors.textOnDark,
+    fontSize: 13,
+    fontFamily: typography.heading,
+  },
+  progressHeader: {
+    marginTop: 54,
+    marginHorizontal: spacing.xl,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressLabel: {
+    color: colors.textOnDarkMuted,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    fontFamily: typography.heading,
+  },
+  progressTrack: {
+    marginTop: 8,
+    marginHorizontal: spacing.xl,
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: '#294a6a',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.accent,
   },
   slide: {
     width,
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: spacing.xl,
   },
-  content: {
-    alignItems: 'center',
-    maxWidth: 400,
+  slideCard: {
+    width: '100%',
+    maxWidth: 460,
+    borderRadius: radii.xl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    borderWidth: 1,
+    borderColor: '#375676',
+    backgroundColor: '#13263b',
+    gap: 10,
   },
-  emoji: {
-    fontSize: 100,
-    marginBottom: 30,
+  phase: {
+    fontSize: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.textOnDarkMuted,
+    fontFamily: typography.heading,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 20,
+    fontSize: 32,
+    lineHeight: 36,
+    color: colors.textOnDark,
+    fontFamily: typography.display,
   },
   description: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-    lineHeight: 24,
-    opacity: 0.9,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.textOnDarkMuted,
+    fontFamily: typography.body,
+  },
+  metricRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  metricPill: {
+    backgroundColor: colors.accent,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  metricLabel: {
+    color: colors.surface,
+    fontSize: 12,
+    fontFamily: typography.heading,
+  },
+  tonePill: {
+    backgroundColor: '#1f3854',
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: '#3f5f80',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  toneLabel: {
+    color: colors.textOnDark,
+    fontSize: 12,
+    fontFamily: typography.heading,
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: spacing.md,
   },
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ddd',
+    borderRadius: 99,
+    backgroundColor: '#385978',
     marginHorizontal: 4,
   },
   activeDot: {
-    backgroundColor: '#333',
-    width: 24,
+    backgroundColor: colors.surface,
+    width: 28,
   },
   footer: {
-    paddingHorizontal: 40,
-    paddingBottom: 40,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl + spacing.xs,
+    gap: 10,
+  },
+  outcomeRail: {
+    borderWidth: 1,
+    borderColor: '#355677',
+    backgroundColor: '#102235',
+    borderRadius: radii.lg,
+    padding: spacing.sm,
+    gap: 8,
+  },
+  outcomeRailTitle: {
+    fontSize: 12,
+    color: colors.textOnDark,
+    fontFamily: typography.heading,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  outcomeRailRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  outcomePill: {
+    borderWidth: 1,
+    borderColor: '#466b8f',
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#1a324b',
+  },
+  outcomePillText: {
+    fontSize: 11,
+    color: colors.textOnDark,
+    fontFamily: typography.heading,
+  },
+  outcomeRailMeta: {
+    fontSize: 11,
+    color: '#9eb8d4',
+    fontFamily: typography.body,
+  },
+  languagePanel: {
+    borderWidth: 1,
+    borderColor: '#3f5f80',
+    backgroundColor: '#13263b',
+    borderRadius: radii.lg,
+    padding: spacing.sm,
+    gap: 8,
+  },
+  languagePanelTitle: {
+    fontSize: 12,
+    color: colors.textOnDark,
+    fontFamily: typography.heading,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  languagePanelHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textOnDarkMuted,
+    fontFamily: typography.body,
+  },
+  languageChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  languageChip: {
+    borderWidth: 1,
+    borderColor: '#4a6582',
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#1f3854',
+  },
+  languageChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+  },
+  languageChipText: {
+    fontSize: 11,
+    color: colors.textOnDark,
+    fontFamily: typography.heading,
+  },
+  languageChipTextActive: {
+    color: colors.surface,
+  },
+  footerHint: {
+    fontSize: 12,
+    color: colors.textOnDarkMuted,
+    textAlign: 'center',
+    fontFamily: typography.body,
   },
   button: {
-    backgroundColor: '#333',
-    paddingVertical: 16,
-    borderRadius: 12,
+    backgroundColor: colors.accent,
+    paddingVertical: 15,
+    borderRadius: radii.md,
     alignItems: 'center',
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    color: colors.surface,
+    fontSize: 16,
+    fontFamily: typography.heading,
   },
 });
 
 export default OnboardingScreen;
 
-// Helper function to check if onboarding is complete
 export const isOnboardingComplete = async (): Promise<boolean> => {
   const value = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
   return value === 'true';
 };
 
-// Helper function to reset onboarding (for testing)
 export const resetOnboarding = async (): Promise<void> => {
   await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
 };

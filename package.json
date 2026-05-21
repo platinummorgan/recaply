@@ -6,7 +6,13 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck:root": "tsc --noEmit",
+    "test:frontend": "jest --config jest.config.js --runInBand",
+    "typecheck:frontend": "tsc --noEmit -p tsconfig.frontend.json",
+    "lint:frontend": "eslint App.tsx src --ext .ts,.tsx",
+    "quality:frontend": "npm run typecheck:frontend && npm run lint:frontend && npm run test:frontend",
+    "release:check": "powershell -ExecutionPolicy Bypass -File .\\scripts\\pre_release_check.ps1"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -44,8 +50,15 @@
     "react-native-svg": "15.12.1"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
+    "eslint": "^8.57.1",
+    "eslint-config-expo": "^55.0.0",
+    "jest": "^29.7.0",
+    "jest-expo": "^55.0.16",
     "metro-minify-terser": "^0.83.3",
+    "react-test-renderer": "^19.1.0",
     "typescript": "~5.9.2"
   },
   "private": true

@@ -1,7 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000/api';
+import { API_BASE_URL } from '../config/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -40,12 +39,12 @@ export interface SummaryResponse {
   summary: string;
   keyPoints: string[];
   decisions: string[];
-  actionItems: Array<{
+  actionItems: {
     task: string;
     assignee?: string;
     priority?: string;
     deadline?: string;
-  }>;
+  }[];
   participants?: string[];
   sentiment?: string;
   minutesUsed: number;

@@ -1,10 +1,12 @@
 import { createContext, useState, useContext, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { configureGoogleSignIn } from '../config/googleSignIn';
-
-const API_URL = 'https://web-production-abd11.up.railway.app';
+import {
+  configureGoogleSignIn,
+  GoogleSignin,
+  isGoogleNativeSignInAvailable,
+} from '../config/googleSignIn';
+import { apiUrl } from '../config/api';
 const TOKEN_KEY = 'recaply_auth_token';
 
 interface User {
@@ -58,7 +60,7 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
   const fetchUserInfo = async (authToken: string) => {
     try {
       console.log('Fetching user info...');
-      const response = await fetch(`${API_URL}/api/user/me`, {
+      const response = await fetch(apiUrl('/user/me'), {
         headers: {
           'Authorization': `Bearer ${authToken}`,
         },
@@ -86,7 +88,7 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const response = await fetch(apiUrl('/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +114,7 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
 
   const register = async (email: string, password: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/register`, {
+      const response = await fetch(apiUrl('/auth/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,8 +142,10 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
     try {
       // Sign out from Google if signed in
       try {
+        if (GoogleSignin) {
         await GoogleSignin.signOut();
-      } catch (e) {
+        }
+      } catch {
         // Ignore if not signed in
       }
       
@@ -155,6 +159,10 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
 
   const loginWithGoogle = async () => {
     try {
+      if (!isGoogleNativeSignInAvailable || !GoogleSignin) {
+        throw new Error('Google Sign-In requires a development build or production app. Expo Go does not include this native module.');
+      }
+
       console.log('Checking Play Services...');
       await GoogleSignin.hasPlayServices();
       
@@ -169,7 +177,7 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
       
       console.log('Sending token to backend...');
       // Send Google ID token to backend for verification
-      const response = await fetch(`${API_URL}/api/auth/google`, {
+      const response = await fetch(apiUrl('/auth/google'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -213,7 +221,7 @@ export const AuthProvider = ({ children }: {children: React.ReactNode}) => {
       });
 
       // Send Apple credentials to backend
-      const response = await fetch(`${API_URL}/api/auth/apple`, {
+      const response = await fetch(apiUrl('/auth/apple'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

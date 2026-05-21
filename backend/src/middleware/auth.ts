@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
+import { updateRequestLogContext } from '../services/requestLogContext';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -21,6 +22,10 @@ export const authenticate = async (
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
     req.userId = decoded.userId;
     req.userEmail = decoded.email;
+    updateRequestLogContext({
+      userId: req.userId,
+      userEmail: req.userEmail,
+    });
     
     next();
   } catch (error) {

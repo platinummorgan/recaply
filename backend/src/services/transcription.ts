@@ -1,6 +1,7 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import { Readable } from 'stream';
+import { logger, serializeError } from './logger';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
 
@@ -43,7 +44,11 @@ export async function transcribeAudio(
       durationSeconds: response.data.duration || 0
     };
   } catch (error: any) {
-    console.error('Transcription error:', error.response?.data || error.message);
+    logger.error('transcription_request_failed', {
+      filename,
+      providerResponse: error?.response?.data,
+      ...serializeError(error),
+    });
     throw new Error('Failed to transcribe audio');
   }
 }

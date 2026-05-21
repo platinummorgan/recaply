@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import {Picker} from '@react-native-picker/picker';
+import { colors, radii, spacing } from '../theme/tokens';
 import {
   LLM_PROVIDERS,
   getLLMConfig,
@@ -33,7 +34,7 @@ export const LLMSettingsScreen: React.FC = () => {
     try {
       const savedConfig = await getLLMConfig();
       setConfig(savedConfig);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to load LLM configuration');
     } finally {
       setLoading(false);
@@ -54,7 +55,7 @@ export const LLMSettingsScreen: React.FC = () => {
     try {
       await saveLLMConfig(config);
       Alert.alert('Success', 'LLM configuration saved successfully');
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to save configuration');
     }
   };
@@ -72,7 +73,7 @@ export const LLMSettingsScreen: React.FC = () => {
       } else {
         Alert.alert('Failed', 'LLM connection test failed. Please check your configuration.');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Connection test failed. Please verify your API key and URL.');
     } finally {
       setTesting(false);
@@ -97,7 +98,7 @@ export const LLMSettingsScreen: React.FC = () => {
   if (loading || !config) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -106,6 +107,17 @@ export const LLMSettingsScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container}>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroTitle}>LLM Settings</Text>
+        <Text style={styles.heroSubtitle}>Choose provider, model, and API behavior for summaries.</Text>
+        <View style={styles.heroMetaRow}>
+          <Text style={styles.heroMetaLabel}>Current Provider</Text>
+          <View style={styles.providerBadge}>
+            <Text style={styles.providerBadgeText}>{currentProvider.displayName}</Text>
+          </View>
+        </View>
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>LLM Provider</Text>
         <Text style={styles.description}>
@@ -229,54 +241,99 @@ export const LLMSettingsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.screenBg,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  heroCard: {
+    backgroundColor: colors.surfaceDark,
+    marginTop: spacing.md,
+    marginHorizontal: spacing.md,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+  },
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: colors.textOnDark,
+  },
+  heroSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: colors.textOnDarkMuted,
+    marginBottom: spacing.sm,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroMetaLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  providerBadge: {
+    backgroundColor: colors.accentStrong,
+    borderWidth: 1,
+    borderColor: colors.accentDark,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  providerBadgeText: {
+    fontSize: 11,
+    color: colors.surface,
+    fontWeight: '700',
+  },
   section: {
-    backgroundColor: 'white',
-    marginTop: 20,
-    padding: 20,
+    backgroundColor: colors.surface,
+    marginTop: spacing.sm,
+    marginHorizontal: spacing.md,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
+    color: colors.textPrimary,
     marginBottom: 10,
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 20,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
     marginTop: 15,
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: colors.borderSoft,
+    borderRadius: radii.sm,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   hint: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textMuted,
     marginTop: 5,
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    borderColor: colors.borderSoft,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
   },
   picker: {
     height: 50,
@@ -288,43 +345,45 @@ const styles = StyleSheet.create({
   },
   sliderLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   buttonContainer: {
-    padding: 20,
+    padding: spacing.lg,
   },
   button: {
-    backgroundColor: '#6366f1',
+    backgroundColor: colors.accent,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     alignItems: 'center',
     marginBottom: 12,
   },
   testButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: colors.success,
   },
   buttonText: {
-    color: 'white',
+    color: colors.surface,
     fontSize: 16,
     fontWeight: '600',
   },
   infoBox: {
-    backgroundColor: '#eff6ff',
-    margin: 20,
+    backgroundColor: colors.accentInfoSoft,
+    marginHorizontal: spacing.lg,
+    marginTop: 0,
+    marginBottom: spacing.lg,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: '#bfdbfe',
+    borderColor: colors.accentInfoBorder,
   },
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e40af',
+    color: colors.accentInfoText,
     marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
-    color: '#1e40af',
+    color: colors.accentInfoText,
     lineHeight: 20,
   },
 });

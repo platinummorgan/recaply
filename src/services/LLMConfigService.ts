@@ -159,5 +159,5 @@ export const getEstimatedCostPerMinute = (provider: keyof typeof LLM_PROVIDERS):
     LOCAL: 0, // Free
   };
 
-  return (avgTokensPerMinute / 1000) * (costPer1KTokens[provider] || 0.04);
+  return (avgTokensPerMinute / 1000) * (costPer1KTokens[provider] ?? 0.04);
 };

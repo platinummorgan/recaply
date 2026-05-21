@@ -1,18 +1,15 @@
 import axios, {AxiosError} from 'axios';
 import {LLM_API_KEY, LLM_API_URL, LLM_MODEL} from '@env';
-
-// Re-export types for convenience
-export type {
+import type {
   LLMProvider,
-  LLMRequest,
   LLMResponse,
   SummaryResponse,
   ActionItem,
 } from '../types/llm';
 
-import type {
+// Re-export types for convenience
+export type {
   LLMProvider,
-  LLMRequest,
   LLMResponse,
   SummaryResponse,
   ActionItem,
@@ -62,7 +59,7 @@ const getDefaultProvider = (): LLMProvider => {
  */
 const callOpenAI = async (
   provider: LLMProvider,
-  messages: Array<{role: string; content: string}>,
+  messages: {role: string; content: string}[],
   temperature: number = DEFAULT_TEMPERATURE,
   maxTokens: number = DEFAULT_MAX_TOKENS,
 ): Promise<LLMResponse> => {
@@ -106,7 +103,7 @@ const callOpenAI = async (
  */
 const callAnthropic = async (
   provider: LLMProvider,
-  messages: Array<{role: string; content: string}>,
+  messages: {role: string; content: string}[],
   temperature: number = DEFAULT_TEMPERATURE,
   maxTokens: number = DEFAULT_MAX_TOKENS,
 ): Promise<LLMResponse> => {
@@ -154,7 +151,7 @@ const callAnthropic = async (
  * Main LLM request handler - routes to appropriate provider
  */
 export const callLLM = async (
-  messages: Array<{role: string; content: string}>,
+  messages: {role: string; content: string}[],
   provider?: LLMProvider,
   temperature?: number,
   maxTokens?: number,

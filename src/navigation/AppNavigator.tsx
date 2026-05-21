@@ -1,15 +1,14 @@
 import React from 'react';
 import {TouchableOpacity} from 'react-native';
 import {createStackNavigator} from '@react-navigation/stack';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 
 // Screens
 import RecorderScreen from '../screens/RecorderScreen';
 import TranscriptScreen from '../screens/TranscriptScreen';
 import SummaryScreen from '../screens/SummaryScreen';
 import ExportScreen from '../screens/ExportScreen';
-import {SettingsScreen} from '../screens/SettingsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import {PrivacyScreen} from '../screens/PrivacyScreen';
 import {TermsScreen} from '../screens/TermsScreen';
 import {DataUsageScreen} from '../screens/DataUsageScreen';
@@ -28,7 +27,6 @@ export type RootStackParamList = {
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
-const Tab = createBottomTabNavigator();
 
 const AppNavigator = () => {
   return (
