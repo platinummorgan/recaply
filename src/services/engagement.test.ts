@@ -49,7 +49,7 @@ describe('engagement weekly recap stats', () => {
 
   it('builds summarize-first weekly recap stats when unsummarized meetings exist', () => {
     const now = new Date();
-    const withinWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString();
+    const withinWeek = now.toISOString();
     const stats = buildWeeklyRecapStats(
       [
         { id: 'a', meeting_at: withinWeek, summary_json: { summary: 'ready' } },
